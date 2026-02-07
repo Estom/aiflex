@@ -8,7 +8,7 @@ from typing import Any
 
 from ..core.interfaces import AgentContext, Tool, ToolDefinition
 from ..tools.base_tool import BaseTool
-from ...stores.mcp_config_store import McpServerConfig
+from ..mcp.mcp_config import McpServerConfig
 from ...utils.logger import logger
 
 

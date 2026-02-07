@@ -8,32 +8,37 @@ Agent 是框架的核心类，负责：
 """
 
 import asyncio
-import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from loguru import logger
 
-from .agent_runtime import AgentRuntime, AgentRuntimeConfig
-from .interfaces import AgentContext, AgentRunResult, LLM, Skill, Tool
-from ..tools.tool_registry import ToolRegistry
+from ...integration.ragflow_client import RagFlowClient
+from ..mcp.mcp_config import McpServerConfig
 from ..skills.skill_registry import SkillRegistry
-from ..tools.base_tool import BaseTool
 from ..tools.agent_adapter_tool import AgentAdapterTool
-from ..tools.lazy_mcp_adapter_tool import LazyMcpAdapterTool
-from ..tools.experience_query_tool import ExperienceQueryTool
-from ..tools.experience_update_tool import ExperienceUpdateTool
+from ..tools.edit_file_tool import EditFileTool
 from ..tools.find_files_tool import FindFilesTool
+from ..tools.knowledge_base_retrieve_tool import KnowledgeBaseRetrieveTool
+from ..tools.lazy_mcp_adapter_tool import LazyMcpAdapterTool
 from ..tools.list_directory_tool import ListDirectoryTool
 from ..tools.read_file_tool import ReadFileTool
-from ..tools.write_file_tool import WriteFileTool
-from ..tools.edit_file_tool import EditFileTool
 from ..tools.search_text_tool import SearchTextTool
 from ..tools.shell_tool import ShellTool
-from ..tools.knowledge_base_retrieve_tool import KnowledgeBaseRetrieveTool
-from ...integration.ragflow_client import RagFlowClient
-from ...stores.mcp_config_store import McpServerConfig
+from ..tools.tool_registry import ToolRegistry
+from ..tools.write_file_tool import WriteFileTool
+from .agent_context import AgentContextManager
+from .agent_runtime import AgentRuntime, AgentRuntimeConfig
+from .interfaces import (
+    LLM,
+    AgentContext,
+    AgentRunResult,
+    AgentStep,
+    Skill,
+    Tool,
+)
+from ..memory.memory import MemorySlotConfig
 
 
 class AgentOptions:
@@ -54,7 +59,15 @@ class AgentOptions:
         mcp_servers: list[McpServerConfig] | None = None,
         mcp_lazy_load: bool = False,
         experience_enabled: bool = False,
+        experience_store: Any | None = None,
         knowledge_base: dict[str, Any] | None = None,
+        max_history_rounds: int = 10,
+        memory_enabled: bool = False,
+        memory_slots: list[MemorySlotConfig] | None = None,
+        compression_enabled: bool = False,
+        max_context_length: int = 50,
+        compression_trigger_ratio: float = 0.8,
+        compression_ratio: float = 0.3,
     ):
         self.llm = llm
         self.name = name
@@ -69,7 +82,15 @@ class AgentOptions:
         self.mcp_servers = mcp_servers or []
         self.mcp_lazy_load = mcp_lazy_load
         self.experience_enabled = experience_enabled
+        self.experience_store = experience_store
         self.knowledge_base = knowledge_base
+        self.max_history_rounds = max_history_rounds
+        self.memory_enabled = memory_enabled
+        self.memory_slots = memory_slots or []
+        self.compression_enabled = compression_enabled
+        self.max_context_length = max_context_length
+        self.compression_trigger_ratio = compression_trigger_ratio
+        self.compression_ratio = compression_ratio
 
 
 class Agent:
@@ -120,6 +141,18 @@ class Agent:
         self.experience_enabled: bool = options.experience_enabled
         self.experience_store = options.experience_store
         self.knowledge_base: dict[str, Any] | None = options.knowledge_base
+
+        # 上下文管理器（支持记忆和压缩功能）
+        self.context_manager = AgentContextManager(
+            max_history_rounds=options.max_history_rounds,
+            memory_enabled=options.memory_enabled,
+            memory_slots=options.memory_slots,
+            compression_enabled=options.compression_enabled,
+            max_context_length=options.max_context_length,
+            compression_trigger_ratio=options.compression_trigger_ratio,
+            compression_ratio=options.compression_ratio,
+            llm=options.llm,
+        )
 
         # Codespace 标记
         self.codespace_enabled: bool = bool(options.workspace_root)
@@ -178,6 +211,127 @@ class Agent:
         await self._ensure_initialized()
         return await self.runtime.run_stream(task, context, emit)
 
+    async def run_with_context(
+        self,
+        task: str,
+        session_id: str | None = None,
+    ) -> AgentRunResult:
+        """
+        使用上下文管理器运行 Agent 任务
+
+        自动管理会话上下文，包括历史消息的保存和轮次限制。
+
+        Args:
+            task: 用户任务
+            session_id: 会话 ID，如果为 None 则自动生成
+
+        Returns:
+            AgentRunResult: 运行结果，包含 session_id
+        """
+        await self._ensure_initialized()
+
+        # 获取或创建上下文
+        context = self.context_manager.get_or_create_context(session_id)
+
+        # 运行任务
+        result = await self.runtime.run(task, context)
+
+        # 更新上下文（添加对话到历史）
+        await self.context_manager.update_context(
+            context.session_id,
+            user_message=task,
+            assistant_response=result.output,
+        )
+
+        return result
+
+    async def run_stream_with_context(
+        self,
+        task: str,
+        session_id: str | None = None,
+        emit: Callable[..., Any] | None = None,
+    ) -> AgentRunResult:
+        """
+        使用上下文管理器流式运行 Agent
+
+        自动管理会话上下文，包括历史消息的保存和轮次限制。
+
+        Args:
+            task: 用户任务
+            session_id: 会话 ID，如果为 None 则自动生成
+            emit: 流式输出回调函数 (AgentStep) -> None
+
+        Returns:
+            AgentRunResult: 运行结果，包含 session_id
+        """
+        await self._ensure_initialized()
+
+        # 收集步骤用于流式输出
+        steps_buffer: list[AgentStep] = []
+
+        async def collect_steps(step: AgentStep) -> None:
+            """收集执行步骤"""
+            steps_buffer.append(step)
+            if emit:
+                await emit(step)
+
+        # 获取或创建上下文
+        context = self.context_manager.get_or_create_context(session_id)
+
+        # 运行任务
+        result = await self.runtime.run_stream(task, context, collect_steps)
+
+        # 更新上下文（添加对话到历史）
+        await self.context_manager.update_context(
+            context.session_id,
+            user_message=task,
+            assistant_response=result.output,
+        )
+
+        return result
+
+    def get_context_manager(self) -> AgentContextManager:
+        """
+        获取上下文管理器
+
+        Returns:
+            AgentContextManager: 上下文管理器实例
+        """
+        return self.context_manager
+
+    def get_session_context(self, session_id: str) -> AgentContext | None:
+        """
+        获取指定会话的上下文
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            AgentContext | None: 上下文对象，如果不存在则返回 None
+        """
+        return self.context_manager.get_context(session_id)
+
+    def clear_session(self, session_id: str) -> bool:
+        """
+        清除指定会话的上下文
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            bool: 如果会话存在并被清除返回 True，否则返回 False
+        """
+        return self.context_manager.clear_context(session_id)
+
+    def list_sessions(self) -> list[str]:
+        """
+        列出所有活跃的会话 ID
+
+        Returns:
+            list[str]: 会话 ID 列表
+        """
+        return self.context_manager.list_sessions()
+
     def _register_tools(self, tools: list[Tool]) -> None:
         """注册工具"""
         for tool in tools:
@@ -210,13 +364,6 @@ class Agent:
 
     def _register_builtin_tools(self) -> None:
         """注册内置工具"""
-        # 经验工具
-        if self.experience_enabled:
-            if not self.experience_store:
-                logger.warning(f"Experience tools enabled but experienceStore is missing. agent={self.name}")
-            else:
-                self._register_tool(ExperienceQueryTool(self.name, self.experience_store))
-                self._register_tool(ExperienceUpdateTool(self.name, self.experience_store))
 
         # Codespace 工具
         if self.codespace_enabled:
@@ -273,7 +420,6 @@ class Agent:
 
             # TODO: 加载 MCP 工具
             # 这里需要实现 MCP 客户端的连接和工具加载
-            pass
 
     async def _load_skill_sources(self) -> None:
         """加载技能源"""
@@ -369,8 +515,12 @@ class AgentBuilder:
         self._mcp_servers: list[McpServerConfig] = []
         self._mcp_lazy_load: bool = False
         self._experience_enabled: bool = False
-        self._experience_store: ExperienceStore | None = None
+        self._experience_store: Any | None = None
         self._knowledge_base: dict[str, Any] | None = None
+        self._max_history_rounds: int = 10
+        self._memory_enabled: bool = False
+        self._memory_store: Any | None = None
+        self._memory_slots: list[Any] = []
 
     def with_llm(self, llm: LLM) -> "AgentBuilder":
         """设置 LLM"""
@@ -452,7 +602,7 @@ class AgentBuilder:
         self._experience_enabled = enabled
         return self
 
-    def with_experience_store(self, store: ExperienceStore) -> "AgentBuilder":
+    def with_experience_store(self, store: Any) -> "AgentBuilder":
         """设置经验存储"""
         self._experience_store = store
         return self
@@ -460,6 +610,31 @@ class AgentBuilder:
     def with_knowledge_base(self, knowledge_base: dict[str, Any]) -> "AgentBuilder":
         """设置知识库"""
         self._knowledge_base = dict(knowledge_base)
+        return self
+
+    def with_max_history_rounds(self, max_rounds: int) -> "AgentBuilder":
+        """设置最大历史轮次"""
+        self._max_history_rounds = max_rounds
+        return self
+
+    def with_knowledge_base(self, knowledge_base: dict[str, Any]) -> "AgentBuilder":
+        """设置知识库"""
+        self._knowledge_base = dict(knowledge_base)
+        return self
+
+    def with_memory_enabled(self, enabled: bool) -> "AgentBuilder":
+        """启用记忆功能"""
+        self._memory_enabled = enabled
+        return self
+
+    def with_memory_store(self, store: Any) -> "AgentBuilder":
+        """设置记忆存储"""
+        self._memory_store = store
+        return self
+
+    def with_memory_slots(self, slots: list[Any]) -> "AgentBuilder":
+        """设置记忆槽配置"""
+        self._memory_slots = list(slots)
         return self
 
     def build(self) -> Agent:
@@ -486,5 +661,9 @@ class AgentBuilder:
                 experience_enabled=self._experience_enabled,
                 experience_store=self._experience_store,
                 knowledge_base=self._knowledge_base,
+                max_history_rounds=self._max_history_rounds,
+                memory_enabled=self._memory_enabled,
+                memory_store=self._memory_store,
+                memory_slots=self._memory_slots,
             ),
         )

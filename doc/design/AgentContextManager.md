@@ -1,0 +1,18 @@
+在agent_context.py中实现AgentContextManager，AgentRuntime是没有状态，每一次对话的上下文都是一致的，所有的状态信息都保存在AgentContext中，通过AgentContextManager管理每次对话的不同状态。AgentContextManager主要有以下几个功能。
+
+1. 获取一个session_id用来作为上下文管理的唯一标识。AgentContextManager中会保存一个session_id到历史消息的映射。
+2. 根据sesson_id获取对应的上下文AgentContext对象。
+3. 可以配置AgentContextManager中历史会话保留的轮次。在agent.py会创建并初始化一个AgentContextManager对象，当进行对话的时候，首先根据session_id从AgentContextManager中获取对应的AgentContext对象。
+
+AgentContextManager支持记忆功能。
+1. AgentContextManager支持配置是否开启记忆功能。如果开启记忆功能，在每次更新对应session_id的上下文的时候，都会触发记忆生成。
+2. AgentContextManager中支持添加记忆槽。使用MemeorySlot类标识记忆槽。
+3. 在获取对应session的上下文的时候，会根据session获取对应的记忆，并拼装成一条历史对话信息。role是assistant。
+4. 实现MemoryGenerator类。接收LLM实例和MemorySlotConfig的实例，根据历史记录，通过内置的提示词调用大模型生成记忆槽，并返回MemoryRecord(记录槽位和对应的值)。
+   
+
+AgentContextManager支持上下文压缩功能。
+1. AgentContextManager支持配置是否开启上下文压缩功能,以及上下文的最大长度、上下文压缩触发的比例、上下文压缩后的比例。
+2. AgentContextManager更新session_id对应的上下文的时候，会触发判断是否需要上下文压缩（开启并且上下文长度达到触发比例），然后调用上下文压缩器实现上下文压缩。
+3. 实现一个上下文压缩器ContextCompressor类。接收LLM实、上下文压缩的配置参数，根据历史记录，通过内置提示词调用大模型生成压缩后的消息，并返回压缩后的消息。
+4. 上下文压缩后，获取session对应的上下文的时候，使用压缩后消息代替原历史记录。
