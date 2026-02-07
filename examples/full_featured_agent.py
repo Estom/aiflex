@@ -278,7 +278,7 @@ def create_full_featured_agent() -> Agent:
             SearchTextTool()
         ])
 
-        .with_workspace_root("./workspace")
+        .with_workspace_root("/home/estom/work/pstock/examples/workspace")
 
 
         # ==================== 子 Agent 配置 ====================
@@ -305,7 +305,7 @@ def create_full_featured_agent() -> Agent:
 
         # ==================== agent skills ====================
         .with_skill(weather_skill)
-        .with_skill_sources("skills/")
+        .with_skill_sources(["/home/estom/work/pstock/examples/skills",])
 
         .build()
     )

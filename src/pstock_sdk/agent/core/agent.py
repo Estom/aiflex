@@ -395,10 +395,41 @@ class Agent:
                 - 可以是 SKILL.md 文件的地址
                 - 可以是 SKILL.md 父目录的地址
                 - 可以是包含多个技能子目录的父目录地址
+                - 支持相对路径，相对于 workspace_root 解析
         """
         for source in sources:
-            source_path = Path(source).expanduser().resolve()
+            source_path = self._resolve_skill_source_path(source)
             self._register_single_skill_source(source_path)
+
+    def _resolve_skill_source_path(self, source: str) -> Path:
+        """
+        解析技能源路径
+
+        相对路径相对于 workspace_root 解析，绝对路径直接使用。
+
+        Args:
+            source: 技能源路径
+
+        Returns:
+            Path: 解析后的绝对路径
+        """
+        path = Path(source).expanduser()
+
+        # 如果已经是绝对路径，直接返回
+        if path.is_absolute():
+            return path.resolve()
+
+        # 相对路径：相对于 workspace_root 解析
+        if self.config.workspace_root:
+            base = Path(self.config.workspace_root).resolve()
+            resolved = (base / path).resolve()
+            logger.debug(f"Resolved relative skill path '{source}' to '{resolved}' (base: {base})")
+            return resolved
+
+        # 没有 workspace_root，相对于当前工作目录
+        resolved = path.resolve()
+        logger.debug(f"Resolved relative skill path '{source}' to '{resolved}' (cwd)")
+        return resolved
 
     def _register_single_skill_source(self, source_path: Path) -> None:
         """
