@@ -335,13 +335,20 @@ class AgentContextManager:
         Returns:
             bool: 如果会话存在并被清除返回 True，否则返回 False
         """
+        existed = (
+            session_id in self._sessions
+            or session_id in self._compressed_messages
+            or session_id in self._memory_records
+        )
+
         if session_id in self._sessions:
             del self._sessions[session_id]
         if session_id in self._compressed_messages:
             del self._compressed_messages[session_id]
         if session_id in self._memory_records:
             del self._memory_records[session_id]
-        return session_id in self._sessions or session_id in self._compressed_messages
+
+        return existed
 
     def clear_all(self) -> None:
         """清除所有会话的上下文"""

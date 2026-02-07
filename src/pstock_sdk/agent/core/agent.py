@@ -537,6 +537,10 @@ class AgentBuilder:
         self._memory_enabled: bool = False
         self._memory_store: Any | None = None
         self._memory_slots: list[Any] = []
+        self._compression_enabled: bool = False
+        self._max_context_length: int = 50
+        self._compression_trigger_ratio: float = 0.8
+        self._compression_ratio: float = 0.3
 
     def with_llm(self, llm: LLM) -> "AgentBuilder":
         """设置 LLM"""
@@ -653,6 +657,26 @@ class AgentBuilder:
         self._memory_slots = list(slots)
         return self
 
+    def with_compression_enabled(self, enabled: bool) -> "AgentBuilder":
+        """启用上下文压缩功能"""
+        self._compression_enabled = enabled
+        return self
+
+    def with_max_context_length(self, length: int) -> "AgentBuilder":
+        """设置上下文最大长度"""
+        self._max_context_length = length
+        return self
+
+    def with_compression_trigger_ratio(self, ratio: float) -> "AgentBuilder":
+        """设置压缩触发比例"""
+        self._compression_trigger_ratio = ratio
+        return self
+
+    def with_compression_ratio(self, ratio: float) -> "AgentBuilder":
+        """设置压缩后保留的比例"""
+        self._compression_ratio = ratio
+        return self
+
     def build(self) -> Agent:
         """构建 Agent"""
         if not self._llm:
@@ -679,7 +703,10 @@ class AgentBuilder:
                 knowledge_base=self._knowledge_base,
                 max_history_rounds=self._max_history_rounds,
                 memory_enabled=self._memory_enabled,
-                memory_store=self._memory_store,
                 memory_slots=self._memory_slots,
+                compression_enabled=self._compression_enabled,
+                max_context_length=self._max_context_length,
+                compression_trigger_ratio=self._compression_trigger_ratio,
+                compression_ratio=self._compression_ratio,
             ),
         )
