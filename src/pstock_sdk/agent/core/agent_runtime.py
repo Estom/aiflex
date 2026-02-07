@@ -327,11 +327,11 @@ class AgentRuntime:
 
     def _build_system_prompt(self) -> str:
         """构建系统提示词"""
-        # 工具列表
-        tool_list = "\n".join(
-            f"- {tool.name}: {tool.description}"
-            for tool in self.tool_registry.list()
-        )
+        # 工具列表通过模型接口的tools字段传递，不直接放到系统提示词中
+        # tool_list = "\n".join(
+        #     f"- {tool.name}: {tool.description}"
+        #     for tool in self.tool_registry.list()
+        # )
 
         # 技能列表
         skills_list = "\n".join(
@@ -343,8 +343,8 @@ class AgentRuntime:
             f"You are an agent named {self.config.name}.",
             self.config.description,
             self.config.instructions or "",
-            "You can call tools via function calling when helpful.",
-            f"Available tools:\n{tool_list}" if tool_list else "No tools are available.",
+            # "You can call tools via function calling when helpful.",
+            # f"Available tools:\n{tool_list}" if tool_list else "No tools are available.",
             "You can use skills as follows and access them via read file tool:",
             f"Available skills:\n{skills_list}" if skills_list else "No skills are available.",
         ]

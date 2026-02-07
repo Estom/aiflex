@@ -954,20 +954,6 @@ class TestAgentBuilder:
 
         assert "src/agents/test_agent/skills" in agent.skill_sources
 
-    @pytest.mark.asyncio
-    async def test_builder_with_experience(self, mock_llm):
-        """测试经验功能配置"""
-        agent = (
-            AgentBuilder()
-            .with_name("exp-agent")
-            .with_description("经验功能测试 Agent")
-            .with_llm(mock_llm)
-            .with_experience_enabled(True)
-            .build()
-        )
-
-        assert agent.experience_enabled is True
-
 
 # =============================================================================
 # 12. Edge Cases and Error Handling

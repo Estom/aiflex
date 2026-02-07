@@ -60,7 +60,10 @@ def create_financial_analyst():
         )
         .with_llm(llm)
         .with_max_steps(10)
-        .with_experience_enabled(False)
+        .with_compression_enabled(True)
+        .with_max_context_length(1000)
+        .with_compression_trigger_ratio(0.7)
+        .with_compression_ratio(0.4)
         .build()
     )
 
@@ -92,7 +95,6 @@ def create_code_assistant():
         )
         .with_llm(llm)
         .with_max_steps(15)
-        .with_experience_enabled(False)
         .build()
     )
 

@@ -52,3 +52,4 @@ class McpServerConfig(dict):
     @property
     def enabled(self) -> bool:
         return self.get("enabled", True)
+

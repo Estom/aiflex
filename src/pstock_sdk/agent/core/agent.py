@@ -9,13 +9,15 @@ Agent 是框架的核心类，负责：
 
 import asyncio
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from loguru import logger
 
 from ...integration.ragflow_client import RagFlowClient
 from ..mcp.mcp_config import McpServerConfig
+from ..memory.memory import MemorySlotConfig
 from ..skills.skill_registry import SkillRegistry
 from ..tools.agent_adapter_tool import AgentAdapterTool
 from ..tools.edit_file_tool import EditFileTool
@@ -38,7 +40,6 @@ from .interfaces import (
     Skill,
     Tool,
 )
-from ..memory.memory import MemorySlotConfig
 
 
 class AgentOptions:
@@ -58,8 +59,6 @@ class AgentOptions:
         skill_sources: list[str] | None = None,
         mcp_servers: list[McpServerConfig] | None = None,
         mcp_lazy_load: bool = False,
-        experience_enabled: bool = False,
-        experience_store: Any | None = None,
         knowledge_base: dict[str, Any] | None = None,
         max_history_rounds: int = 10,
         memory_enabled: bool = False,
@@ -69,21 +68,29 @@ class AgentOptions:
         compression_trigger_ratio: float = 0.8,
         compression_ratio: float = 0.3,
     ):
+        # 模型参数
         self.llm = llm
+        # 基本信息
         self.name = name
         self.description = description
         self.max_steps = max_steps
+        # 系统提示词
         self.instructions = instructions
+        # 工作空间根目录
         self.workspace_root = workspace_root
+        # 工具
         self.tools = tools or []
+        # 子 Agent
         self.children = children or []
+        # 技能或者技能地址
         self.skills = skills or []
         self.skill_sources = skill_sources or []
+        # mcp 服务器配置
         self.mcp_servers = mcp_servers or []
         self.mcp_lazy_load = mcp_lazy_load
-        self.experience_enabled = experience_enabled
-        self.experience_store = experience_store
+        # 知识库配置
         self.knowledge_base = knowledge_base
+        # 最大历史轮数、记忆、压缩等上下文参数
         self.max_history_rounds = max_history_rounds
         self.memory_enabled = memory_enabled
         self.memory_slots = memory_slots or []
@@ -137,9 +144,7 @@ class Agent:
         self.mcp_servers: list[McpServerConfig] = options.mcp_servers
         self.mcp_lazy_load: bool = options.mcp_lazy_load
 
-        # 经验和知识库
-        self.experience_enabled: bool = options.experience_enabled
-        self.experience_store = options.experience_store
+        # 知识库
         self.knowledge_base: dict[str, Any] | None = options.knowledge_base
 
         # 上下文管理器（支持记忆和压缩功能）
@@ -155,7 +160,7 @@ class Agent:
         )
 
         # Codespace 标记
-        self.codespace_enabled: bool = bool(options.workspace_root)
+        self.workspace_root: str = options.workspace_root
 
         # 技能源
         self.skill_sources: list[str] = options.skill_sources
@@ -168,6 +173,7 @@ class Agent:
         self._register_builtin_tools()
         self._register_tools(options.tools)
         self._register_skills(options.skills)
+        self._register_skill_source(options.skill_sources)
 
         # 创建 Runtime
         self.runtime = AgentRuntime(
@@ -378,11 +384,152 @@ class Agent:
         for skill in skills:
             self.skill_registry.register(skill)
 
+    def _register_skill_source(self, sources: list[str]) -> None:
+        """
+        注册技能源
+
+        读取 sources 路径下的 SKILL.md 文件，解析元信息并注册到 skill_registry。
+
+        Args:
+            sources: 技能源路径列表
+                - 可以是 SKILL.md 文件的地址
+                - 可以是 SKILL.md 父目录的地址
+                - 可以是包含多个技能子目录的父目录地址
+        """
+        for source in sources:
+            source_path = Path(source).expanduser().resolve()
+            self._register_single_skill_source(source_path)
+
+    def _register_single_skill_source(self, source_path: Path) -> None:
+        """
+        注册单个技能源
+
+        Args:
+            source_path: 技能源路径
+        """
+        if not source_path.exists():
+            logger.debug(f"Skill source does not exist: {source_path}")
+            return
+
+        # 如果是文件，直接是 SKILL.md
+        if source_path.is_file():
+            if source_path.name.upper() != "SKILL.MD":
+                logger.debug(f"Not a SKILL.md file: {source_path}")
+                return
+            skill = self._parse_skill_file_sync(source_path, source_path.parent)
+            if skill and not self.skill_registry.get(skill["name"]):
+                self.skill_registry.register(skill)
+                logger.debug(f"Registered skill: {skill['name']} from {source_path}")
+            return
+
+        # 如果是目录
+        if source_path.is_dir():
+            # 检查是否有直接的 SKILL.md
+            skill_md = source_path / "SKILL.md"
+            if skill_md.exists():
+                skill = self._parse_skill_file_sync(skill_md, source_path)
+                if skill and not self.skill_registry.get(skill["name"]):
+                    self.skill_registry.register(skill)
+                    logger.debug(f"Registered skill: {skill['name']} from {skill_md}")
+                return
+
+            # 遍历子目录查找 SKILL.md
+            for entry in source_path.iterdir():
+                if not entry.is_dir():
+                    continue
+                skill_md = entry / "SKILL.md"
+                if skill_md.exists():
+                    skill = self._parse_skill_file_sync(skill_md, entry, entry.name)
+                    if skill and not self.skill_registry.get(skill["name"]):
+                        self.skill_registry.register(skill)
+                        logger.debug(f"Registered skill: {skill['name']} from {skill_md}")
+
+    def _parse_skill_file_sync(
+        self,
+        skill_md_path: Path,
+        skill_dir: Path,
+        fallback_name: str | None = None,
+    ) -> Skill | None:
+        """
+        同步解析技能文件
+
+        Args:
+            skill_md_path: SKILL.md 文件路径
+            skill_dir: 技能目录
+            fallback_name: 备用名称
+
+        Returns:
+            Skill | None: 解析后的技能，失败返回 None
+        """
+        try:
+            content = skill_md_path.read_text()
+            # 解析 YAML frontmatter
+            # 格式: ---\nkey: value\n---\ncontent
+            import re
+
+            import yaml
+
+            frontmatter_match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", content, re.DOTALL)
+            if frontmatter_match:
+                yaml_content = frontmatter_match.group(1)
+                metadata = yaml.safe_load(yaml_content)
+                if isinstance(metadata, dict):
+                    name = metadata.get("name", fallback_name or skill_dir.name)
+                    description = metadata.get("description", "")
+                    version = metadata.get("version", "")
+                    author = metadata.get("author", "")
+                    skill_content = frontmatter_match.group(2)
+
+                    skill: Skill = {
+                        "name": name,
+                        "description": description,
+                        "path": str(skill_md_path),
+                    }
+                    if version:
+                        skill["version"] = version
+                    if author:
+                        skill["author"] = author
+                    if skill_content.strip():
+                        skill["content"] = skill_content.strip()
+
+                    return skill
+
+            # 如果没有 frontmatter，尝试解析整个文件为 YAML
+            metadata = yaml.safe_load(content)
+            if isinstance(metadata, dict):
+                name = metadata.get("name", fallback_name or skill_dir.name)
+                description = metadata.get("description", "")
+                version = metadata.get("version", "")
+                author = metadata.get("author", "")
+
+                skill: Skill = {
+                    "name": name,
+                    "description": description,
+                    "path": str(skill_md_path),
+                }
+                if version:
+                    skill["version"] = version
+                if author:
+                    skill["author"] = author
+
+                return skill
+
+            # 使用目录名作为 fallback
+            return {
+                "name": fallback_name or skill_dir.name,
+                "description": "",
+                "path": str(skill_md_path),
+            }
+
+        except Exception as e:
+            logger.warning(f"Failed to read SKILL.md. path={skill_md_path}, error={e}")
+            return None
+
     def _register_builtin_tools(self) -> None:
         """注册内置工具"""
 
         # Codespace 工具
-        if self.codespace_enabled:
+        if bool(self.workspace_root):
             self._register_tool(FindFilesTool())
             self._register_tool(ListDirectoryTool())
             self._register_tool(ReadFileTool())
@@ -530,8 +677,6 @@ class AgentBuilder:
         self._children: list[Agent] = []
         self._mcp_servers: list[McpServerConfig] = []
         self._mcp_lazy_load: bool = False
-        self._experience_enabled: bool = False
-        self._experience_store: Any | None = None
         self._knowledge_base: dict[str, Any] | None = None
         self._max_history_rounds: int = 10
         self._memory_enabled: bool = False
@@ -617,16 +762,6 @@ class AgentBuilder:
         self._mcp_lazy_load = enabled
         return self
 
-    def with_experience_enabled(self, enabled: bool) -> "AgentBuilder":
-        """启用经验"""
-        self._experience_enabled = enabled
-        return self
-
-    def with_experience_store(self, store: Any) -> "AgentBuilder":
-        """设置经验存储"""
-        self._experience_store = store
-        return self
-
     def with_knowledge_base(self, knowledge_base: dict[str, Any]) -> "AgentBuilder":
         """设置知识库"""
         self._knowledge_base = dict(knowledge_base)
@@ -698,8 +833,6 @@ class AgentBuilder:
                 skill_sources=self._skill_sources,
                 mcp_servers=self._mcp_servers,
                 mcp_lazy_load=self._mcp_lazy_load,
-                experience_enabled=self._experience_enabled,
-                experience_store=self._experience_store,
                 knowledge_base=self._knowledge_base,
                 max_history_rounds=self._max_history_rounds,
                 memory_enabled=self._memory_enabled,
