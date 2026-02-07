@@ -1,0 +1,335 @@
+"""
+Agent Runtime - Agent 运行时实现
+
+实现 ReAct 循环：思考 -> 行动 -> 观察 -> 最终答案
+"""
+
+import json
+from dataclasses import dataclass
+from typing import Any
+
+from loguru import logger
+
+from .interfaces import (
+    AgentContext,
+    AgentRunResult,
+    AgentStep,
+    ChatMessage,
+    LLM,
+    ToolCall,
+    ToolDefinition,
+)
+from ..tools.tool_registry import ToolRegistry
+from ..skills.skill_registry import SkillRegistry
+from ...utils.agent_step import build_agent_step
+
+
+@dataclass
+class AgentRuntimeConfig:
+    """Agent Runtime 配置"""
+    name: str
+    description: str
+    max_steps: int = 5
+    instructions: str | None = None
+    workspace_root: str | None = None
+
+
+class AgentRuntime:
+    """
+    Agent 运行时
+
+    负责：
+    - 构建 system prompt
+    - 执行 ReAct 循环
+    - 调用 LLM
+    - 执行工具调用
+    """
+
+    def __init__(
+        self,
+        llm: LLM,
+        tool_registry: ToolRegistry,
+        skill_registry: SkillRegistry,
+        config: AgentRuntimeConfig,
+    ):
+        self.llm = llm
+        self.tool_registry = tool_registry
+        self.skill_registry = skill_registry
+        self.config = config
+
+        # 默认 instructions
+        if not config.instructions:
+            config.instructions = (
+                "Use ReAct style with OpenAI function calling. "
+                "Call tools when helpful and provide a concise final answer when done."
+            )
+
+    async def run(self, task: str, context: AgentContext | None = None) -> AgentRunResult:
+        """
+        运行 Agent 任务
+
+        Args:
+            task: 用户任务
+            context: 运行时上下文
+
+        Returns:
+            AgentRunResult: 运行结果
+        """
+        steps: list[AgentStep] = []
+        iteration = 0
+
+        # 构建消息列表
+        messages: list[ChatMessage] = [
+            {"role": "system", "content": self._build_system_prompt()},
+            *self._get_history_messages(context),
+            {"role": "user", "content": task},
+        ]
+
+        # ReAct 循环
+        while iteration < self.config.max_steps:
+            # 调用 LLM
+            reply = await self.llm.chat(messages, self.tool_registry.definitions())
+            content = reply["message"].get("content")
+            tool_calls = reply["message"].get("tool_calls", [])
+
+            # 记录思考步骤
+            thought_step = build_agent_step(
+                "thought",
+                content or "",
+                "思考中",
+                reply.get("raw"),
+            )
+            steps.append(thought_step)
+
+            # 如果有工具调用
+            if tool_calls:
+                messages.append({
+                    "role": "assistant",
+                    "content": content,
+                    "tool_calls": tool_calls,
+                })
+
+                # 执行每个工具调用
+                for call in tool_calls:
+                    action_step = self._build_tool_step(call, content)
+                    steps.append(action_step)
+
+                    # 执行工具
+                    observation = await self._execute_tool(call, context)
+                    observation_step = build_agent_step(
+                        "observation",
+                        observation,
+                        f"工具结果 {call['name']}",
+                        reply.get("raw"),
+                        {"call": call["name"]},
+                    )
+                    steps.append(observation_step)
+
+                    # 添加工具结果到消息
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "name": call["name"],
+                        "content": observation,
+                    })
+
+                iteration += 1
+                continue
+
+            # 如果有最终回答
+            if content:
+                final_step = build_agent_step(
+                    "final",
+                    content.strip(),
+                    "最终回答",
+                    reply.get("raw"),
+                )
+                steps.append(final_step)
+                return AgentRunResult(output=content.strip(), steps=steps)
+
+            # 空响应
+            empty_step = build_agent_step(
+                "error",
+                "No response content from model.",
+                "回答丢失",
+                reply.get("raw"),
+            )
+            steps.append(empty_step)
+            iteration += 1
+
+        # 达到最大步数
+        fallback = "Error: Maximum steps reached without a final answer."
+        final_step = build_agent_step("error", fallback, "回答错误")
+        steps.append(final_step)
+        return AgentRunResult(output=fallback, steps=steps)
+
+    async def run_stream(
+        self,
+        task: str,
+        context: AgentContext,
+        emit: callable,  # (AgentStep) -> None
+    ) -> AgentRunResult:
+        """
+        流式运行 Agent（用于实时输出）
+
+        Args:
+            task: 用户任务
+            context: 运行时上下文
+            emit: 回调函数，用于发送步骤
+
+        Returns:
+            AgentRunResult: 运行结果
+        """
+        iteration = 0
+
+        messages: list[ChatMessage] = [
+            {"role": "system", "content": self._build_system_prompt()},
+            *self._get_history_messages(context),
+            {"role": "user", "content": task},
+        ]
+
+        while iteration < self.config.max_steps:
+            reply = await self.llm.chat(messages, self.tool_registry.definitions())
+            content = reply["message"].get("content")
+            tool_calls = reply["message"].get("tool_calls", [])
+
+            # 发送思考步骤
+            agent_step = build_agent_step(
+                "thought",
+                content or "",
+                "思考中",
+                reply.get("raw"),
+            )
+            emit(agent_step)
+
+            # 如果有工具调用
+            if tool_calls:
+                messages.append({
+                    "role": "assistant",
+                    "content": content,
+                    "tool_calls": tool_calls,
+                })
+
+                for call in tool_calls:
+                    # 发送动作步骤
+                    action_step = self._build_tool_step(call, content)
+                    emit(action_step)
+
+                    # 执行工具
+                    observation = await self._execute_tool(call, context)
+
+                    # 发送观察步骤
+                    observation_step = build_agent_step(
+                        "observation",
+                        observation,
+                        f"调用结果 {call['name']}",
+                        reply.get("raw"),
+                        {"call": call["name"]},
+                    )
+                    emit(observation_step)
+
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "name": call["name"],
+                        "content": observation,
+                    })
+
+                iteration += 1
+                continue
+
+            # 最终回答
+            if content:
+                final_step = build_agent_step(
+                    "final",
+                    content.strip(),
+                    "最终回答",
+                    reply.get("raw"),
+                )
+                emit(final_step)
+                return AgentRunResult(output=content.strip())
+
+            # 空响应
+            empty_step = build_agent_step(
+                "error",
+                "No response content from model.",
+                "回答丢失",
+                reply.get("raw"),
+            )
+            emit(empty_step)
+            iteration += 1
+
+        # 达到最大步数
+        fallback = "Error: Maximum steps reached without a final answer."
+        final_step = build_agent_step("error", fallback, "回答错误")
+        emit(final_step)
+        return AgentRunResult(output=fallback)
+
+    def _build_system_prompt(self) -> str:
+        """构建系统提示词"""
+        # 工具列表
+        tool_list = "\n".join(
+            f"- {tool.name}: {tool.description}"
+            for tool in self.tool_registry.list()
+        )
+
+        # 技能列表
+        skills_list = "\n".join(
+            f"- {skill['name']} in path {skill.get('path', '')}: {skill['description']}"
+            for skill in self.skill_registry.list()
+        )
+
+        parts = [
+            f"You are an agent named {self.config.name}.",
+            self.config.description,
+            self.config.instructions or "",
+            "You can call tools via function calling when helpful.",
+            f"Available tools:\n{tool_list}" if tool_list else "No tools are available.",
+            "You can use skills as follows and access them via read file tool:",
+            f"Available skills:\n{skills_list}" if skills_list else "No skills are available.",
+        ]
+
+        if self.config.workspace_root:
+            parts.append(f"Your workspace root is at: {self.config.workspace_root}")
+
+        return "\n\n".join(parts)
+
+    def _build_tool_step(self, call: ToolCall, thought: str | None) -> AgentStep:
+        """构建工具调用步骤"""
+        try:
+            parsed_args = json.loads(call["arguments"])
+        except json.JSONDecodeError:
+            parsed_args = call["arguments"]
+
+        action_input = json.dumps(parsed_args) if not isinstance(parsed_args, str) else parsed_args
+
+        return build_agent_step(
+            "action",
+            action_input,
+            f"调用工具 {call['name']}",
+            call,
+            {"call": call["name"], "thought": thought},
+        )
+
+    async def _execute_tool(self, call: ToolCall, context: AgentContext | None) -> str:
+        """执行工具调用"""
+        tool = self.tool_registry.get(call["name"])
+        if not tool:
+            return f"Error: tool {call['name']} not found."
+
+        try:
+            args = json.loads(call["arguments"])
+        except json.JSONDecodeError:
+            args = call["arguments"]
+
+        try:
+            return await tool.execute(args, context)
+        except Exception as e:
+            logger.error(f"Error executing tool {call['name']}: {e}")
+            return f"Error executing tool {call['name']}: {e!s}"
+
+    def _get_history_messages(self, context: AgentContext | None) -> list[ChatMessage]:
+        """获取历史消息"""
+        if not context:
+            return []
+        return context.history_messages or []

@@ -1,0 +1,27 @@
+{
+  "name": "data_fetcher",
+  "version": "1.0.0",
+  "description": "A specialized agent for fetching financial and market data from various sources",
+  "model": null,
+  "prompt": {
+    "system": "You are a data fetcher specialized in retrieving financial and market data. Always provide accurate, up-to-date information and cite your sources."
+  },
+  "skills": {
+    "sources": [],
+    "inline": []
+  },
+  "tools": {
+    "auto_discover": false,
+    "enabled": [],
+    "disabled": []
+  },
+  "subagents": [],
+  "runtime": {
+    "max_steps": 5,
+    "workspace_root": null,
+    "mcp_lazy_load": false,
+    "mcp_servers": [],
+    "experience_enabled": false,
+    "knowledge_base": null
+  }
+}

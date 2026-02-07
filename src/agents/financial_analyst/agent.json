@@ -1,0 +1,32 @@
+{
+  "name": "financial_analyst",
+  "version": "1.0.0",
+  "description": "An AI agent specialized in financial analysis and stock market insights",
+  "model": null,
+  "prompt": {
+    "file": "prompt.md"
+  },
+  "skills": {
+    "sources": ["skills/"],
+    "inline": []
+  },
+  "tools": {
+    "auto_discover": true,
+    "enabled": [],
+    "disabled": []
+  },
+  "subagents": [
+    {
+      "name": "data_fetcher",
+      "enabled": true
+    }
+  ],
+  "runtime": {
+    "max_steps": 10,
+    "workspace_root": null,
+    "mcp_lazy_load": false,
+    "mcp_servers": [],
+    "experience_enabled": false,
+    "knowledge_base": null
+  }
+}
