@@ -332,6 +332,22 @@ class Agent:
         """
         return self.context_manager.list_sessions()
 
+    def terminate(self) -> None:
+        """
+        终止当前运行的会话
+
+        此方法会设置终止标志位，使正在运行的 Agent 任务在下次循环迭代时终止。
+        """
+        self.runtime.terminate()
+
+    def reset_runtime(self) -> None:
+        """
+        重置运行时状态
+
+        重置终止标志位，使 Agent 可以正常运行新的任务。
+        """
+        self.runtime.reset()
+
     def _register_tools(self, tools: list[Tool]) -> None:
         """注册工具"""
         for tool in tools:

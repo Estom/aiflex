@@ -43,6 +43,7 @@ class AgentRuntime:
     - 执行 ReAct 循环
     - 调用 LLM
     - 执行工具调用
+    - 支持会话终止
     """
 
     def __init__(
@@ -56,6 +57,7 @@ class AgentRuntime:
         self.tool_registry = tool_registry
         self.skill_registry = skill_registry
         self.config = config
+        self._terminated = False
 
         # 默认 instructions
         if not config.instructions:
@@ -63,6 +65,14 @@ class AgentRuntime:
                 "Use ReAct style with OpenAI function calling. "
                 "Call tools when helpful and provide a concise final answer when done."
             )
+
+    def terminate(self) -> None:
+        """终止当前运行的会话"""
+        self._terminated = True
+
+    def reset(self) -> None:
+        """重置终止状态，用于下次运行"""
+        self._terminated = False
 
     async def run(self, task: str, context: AgentContext | None = None) -> AgentRunResult:
         """
@@ -87,6 +97,20 @@ class AgentRuntime:
 
         # ReAct 循环
         while iteration < self.config.max_steps:
+            # 检查终止标志
+            if self._terminated:
+                terminated_step = build_agent_step(
+                    "terminated",
+                    "会话已被终止",
+                    "会话终止",
+                )
+                steps.append(terminated_step)
+                self.reset()
+                return AgentRunResult(
+                    output="[会话已终止]",
+                    steps=steps,
+                )
+
             # 调用 LLM
             reply = await self.llm.chat(messages, self.tool_registry.definitions())
             content = reply["message"].get("content")
@@ -111,6 +135,20 @@ class AgentRuntime:
 
                 # 执行每个工具调用
                 for call in tool_calls:
+                    # 检查终止标志
+                    if self._terminated:
+                        terminated_step = build_agent_step(
+                            "terminated",
+                            "会话已被终止",
+                            "会话终止",
+                        )
+                        steps.append(terminated_step)
+                        self.reset()
+                        return AgentRunResult(
+                            output="[会话已终止]",
+                            steps=steps,
+                        )
+
                     action_step = self._build_tool_step(call, content)
                     steps.append(action_step)
 
@@ -189,6 +227,17 @@ class AgentRuntime:
         ]
 
         while iteration < self.config.max_steps:
+            # 检查终止标志
+            if self._terminated:
+                terminated_step = build_agent_step(
+                    "terminated",
+                    "会话已被终止",
+                    "会话终止",
+                )
+                emit(terminated_step)
+                self.reset()
+                return AgentRunResult(output="[会话已终止]")
+
             reply = await self.llm.chat(messages, self.tool_registry.definitions())
             content = reply["message"].get("content")
             tool_calls = reply["message"].get("tool_calls", [])
@@ -211,6 +260,17 @@ class AgentRuntime:
                 })
 
                 for call in tool_calls:
+                    # 检查终止标志
+                    if self._terminated:
+                        terminated_step = build_agent_step(
+                            "terminated",
+                            "会话已被终止",
+                            "会话终止",
+                        )
+                        emit(terminated_step)
+                        self.reset()
+                        return AgentRunResult(output="[会话已终止]")
+
                     # 发送动作步骤
                     action_step = self._build_tool_step(call, content)
                     emit(action_step)
