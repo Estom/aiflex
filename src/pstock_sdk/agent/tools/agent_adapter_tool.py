@@ -6,11 +6,11 @@ Agent Adapter Tool - 子 Agent 适配器工具
 
 from typing import Any, Callable
 
-from ..core.interfaces import AgentContext, Tool, ToolDefinition
+from ..core.interfaces import AgentContext, AgentRunResult, Tool, ToolDefinition
 from ..tools.base_tool import BaseTool
 
 
-type ChildAgentExecutor = Callable[[str, AgentContext | None], Any]  # AgentRunResult
+type ChildAgentExecutor = Callable[[str, AgentContext | None], AgentRunResult]  # AgentRunResult
 
 
 class AgentDescriptor:
@@ -72,7 +72,7 @@ class AgentAdapterTool(BaseTool):
 
         try:
             result = await self._run_child_agent(task, context)
-            return result["output"]
+            return result.output
         except Exception as e:
             return f"Child agent {self._agent.name} failed: {e!s}"
 

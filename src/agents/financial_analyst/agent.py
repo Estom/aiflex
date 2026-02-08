@@ -90,5 +90,10 @@ async def main():
     print(f"\nResult:\n{result.output}")
 
 
-if __name__ == "__main__":
+def entry_point() -> None:
+    """同步入口函数，用于控制台脚本"""
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    entry_point()

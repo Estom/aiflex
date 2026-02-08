@@ -1,0 +1,35 @@
+POST http://ragflow.test.com:80/api/v1/retrieval
+Content-Type: application/json
+Authorization: Bearer ragflow-PkfYACUTmecz21AftyzW61dIEaS-etdyM_dS6oo7RxU
+
+{
+    "question": "股票分析", 
+    "dataset_ids": ["b288d410eeb311f0a205626a91af775a"], 
+    "similarity_threshold": 0.2, 
+    "vector_similarity_weight": 0.3, 
+    "top_k": 10, 
+    "page": 1, 
+    "page_size": 5
+}
+
+
+###
+curl --location 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding' \
+--header "Authorization: Bearer sk-ecc5d65db7fa489190964168d6b8527e" \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "text-embedding-v4",
+    "input": {
+        "texts": [
+        "风急天高猿啸哀，渚清沙白鸟飞回，无边落木萧萧下，不尽长江滚滚来"
+        ]
+    },
+    "parameters": {
+    	"dimension": 1024,
+    	"output_type": "dense"
+    }
+}'
+
+
+
+

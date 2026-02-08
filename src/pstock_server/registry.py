@@ -172,7 +172,6 @@ class AgentRegistry:
             workspace_root=agent.config.workspace_root,
             instructions=agent.config.instructions,
             mcp_servers=agent.mcp_servers,
-            experience_enabled=agent.experience_enabled,
             knowledge_base=agent.knowledge_base,
         )
 

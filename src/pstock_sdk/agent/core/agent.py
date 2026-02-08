@@ -15,7 +15,10 @@ from typing import Any
 
 from loguru import logger
 
+from pstock_sdk.agent.tools.mcp_adapter_tool import McpAdapterTool
+
 from ...integration.ragflow_client import RagFlowClient
+from ..mcp.mcp_client import McpClient
 from ..mcp.mcp_config import McpServerConfig
 from ..memory.memory import MemorySlotConfig
 from ..skills.skill_registry import SkillRegistry
@@ -498,12 +501,22 @@ class Agent:
             # 格式: ---\nkey: value\n---\ncontent
             import re
 
-            import yaml
+            def _parse_simple_frontmatter(yaml_content: str) -> dict:
+                """简单解析 frontmatter，按行读取，按第一个冒号分割"""
+                result = {}
+                for line in yaml_content.split("\n"):
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if ":" in line:
+                        key, value = line.split(":", 1)
+                        result[key.strip()] = value.strip()
+                return result
 
             frontmatter_match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", content, re.DOTALL)
             if frontmatter_match:
                 yaml_content = frontmatter_match.group(1)
-                metadata = yaml.safe_load(yaml_content)
+                metadata = _parse_simple_frontmatter(yaml_content)
                 if isinstance(metadata, dict):
                     name = metadata.get("name", fallback_name or skill_dir.name)
                     description = metadata.get("description", "")
@@ -525,8 +538,8 @@ class Agent:
 
                     return skill
 
-            # 如果没有 frontmatter，尝试解析整个文件为 YAML
-            metadata = yaml.safe_load(content)
+            # 如果没有 frontmatter，尝试解析整个文件
+            metadata = _parse_simple_frontmatter(content)
             if isinstance(metadata, dict):
                 name = metadata.get("name", fallback_name or skill_dir.name)
                 description = metadata.get("description", "")
@@ -604,89 +617,38 @@ class Agent:
 
     async def _initialize(self) -> None:
         """初始化 Agent"""
-        await self._load_skill_sources()
-
-        # 如果启用 MCP 非懒加载
+        # 如果启用 MCP 非懒加载，注册 MCP 工具
         if not self.mcp_lazy_load and self.mcp_servers:
-            enabled_servers = [cfg for cfg in self.mcp_servers if cfg.get("enabled", True)]
-            if not enabled_servers:
-                return
+            await self._register_mcp_tools()
 
-            # TODO: 加载 MCP 工具
-            # 这里需要实现 MCP 客户端的连接和工具加载
-
-    async def _load_skill_sources(self) -> None:
-        """加载技能源"""
-        sources = set(self.skill_sources)
-        if self.config.workspace_root:
-            sources.add(os.path.join(self.config.workspace_root, ".pstock", "skills"))
-
-        for source in sources:
-            await self._load_skill_source(source)
-
-    async def _load_skill_source(self, source: str) -> None:
-        """加载单个技能源"""
-        source_path = Path(source).resolve()
-
-        if not source_path.exists():
+    async def _register_mcp_tools(self) -> None:
+        """注册 MCP 工具"""
+        enabled_servers = [cfg for cfg in self.mcp_servers if cfg.get("enabled", True)]
+        if not enabled_servers:
             return
 
-        if source_path.is_file():
-            if source_path.name.upper() != "SKILL.MD":
-                return
-            skill = await self._parse_skill_file(source_path, source_path.parent)
-            if skill and not self.skill_registry.get(skill["name"]):
-                self.skill_registry.register(skill)
-            return
+        async def load_server_tools(cfg: McpServerConfig) -> None:
+            """加载单个 MCP 服务器的工具"""
+            client = McpClient(cfg)
+            try:
+                tools = await client.list_tools()
+                for tool in tools:
+                    adapter_tool = McpAdapterTool(
+                        server_name=cfg["name"],
+                        tool=tool,
+                        client=client,
+                    )
+                    self.tool_registry.register(adapter_tool)
+                logger.info(
+                    f"Loaded {len(tools)} tools from MCP server: {cfg['name']}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load MCP tools. server={cfg['name']}, error={e}"
+                )
 
-        if source_path.is_dir():
-            # 检查直接 SKILL.md
-            skill_md = source_path / "SKILL.md"
-            if skill_md.exists():
-                skill = await self._parse_skill_file(skill_md, source_path)
-                if skill and not self.skill_registry.get(skill["name"]):
-                    self.skill_registry.register(skill)
-                return
-
-            # 遍历子目录
-            for entry in source_path.iterdir():
-                if not entry.is_dir():
-                    continue
-                skill_md = entry / "SKILL.md"
-                if skill_md.exists():
-                    skill = await self._parse_skill_file(skill_md, entry, entry.name)
-                    if skill and not self.skill_registry.get(skill["name"]):
-                        self.skill_registry.register(skill)
-
-    async def _parse_skill_file(
-        self,
-        skill_md_path: Path,
-        skill_dir: Path,
-        fallback_name: str | None = None,
-    ) -> Skill | None:
-        """解析技能文件"""
-        try:
-            content = await asyncio.to_thread(skill_md_path.read_text)
-            import yaml
-
-            # 解析 frontmatter
-            match = yaml.safe_load(content)
-            if isinstance(match, dict):
-                name = match.get("name", fallback_name or skill_dir.name)
-                description = match.get("description", "")
-            else:
-                name = fallback_name or skill_dir.name
-                description = ""
-
-            return {
-                "name": name,
-                "description": description,
-                "path": str(skill_md_path),
-            }
-        except Exception as e:
-            logger.warning(f"Failed to read SKILL.md. path={skill_md_path}, error={e}")
-            return None
-
+        # 并行加载所有 MCP 服务器的工具
+        await asyncio.gather(*[load_server_tools(cfg) for cfg in enabled_servers])
 
 class AgentBuilder:
     """

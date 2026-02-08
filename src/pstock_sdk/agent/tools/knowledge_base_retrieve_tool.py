@@ -67,6 +67,7 @@ class KnowledgeBaseRetrieveTool(Tool):
         similarity_threshold = retrieval.get("similarityThreshold", 0.2)
         vector_similarity_weight = retrieval.get("vectorSimilarityWeight", 0.3)
         recall_count = retrieval.get("recallCount", 5)
+        top_k = retrieval.get("topK", 5)
 
         result = await self._ragflow.retrieve_chunks(
             RetrieveChunksRequest(
@@ -76,6 +77,7 @@ class KnowledgeBaseRetrieveTool(Tool):
                 page_size=min(100, max(1, recall_count)),
                 similarity_threshold=similarity_threshold,
                 vector_similarity_weight=vector_similarity_weight,
+                top_k=top_k,
             ),
         )
 

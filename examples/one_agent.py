@@ -32,10 +32,12 @@ from typing import Any
 from dotenv import load_dotenv
 
 from pstock_sdk.agent.core.agent import Agent, AgentBuilder
-from pstock_sdk.agent.core.interfaces import AgentContext, Skill, Tool, ToolDefinition
+from pstock_sdk.agent.core.interfaces import AgentContext, AgentStep, Skill, Tool, ToolDefinition
 from pstock_sdk.agent.mcp.mcp_config import McpServerConfig
 from pstock_sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
 from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+from pstock_server import registry
+from pstock_server.server import AgentServer
 
 load_dotenv()
 
@@ -222,17 +224,19 @@ def create_full_featured_agent() -> Agent:
     analyst_agent = create_analyst_agent(llm)
 
     # 创建mcp config
+    # 注意：如果 API key 无效，请设置 enabled=False 禁用 MCP 功能
 
     mcp_server_config = McpServerConfig(
         name="web_search_mcp_aliyun",
         baseUrl="https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/sse",
         apiKey="sk-eb893e7ed312495fbf074856731d8047",
-        description="这是一个联网搜索的mcp服务器"
+        description="这是一个联网搜索的mcp服务器",
+        enabled=False,  # 暂时禁用，待配置有效 API key 后启用
     )
     
     # 创建知识库配置
     knowledge_base_config = {
-        "datasetIds": ["b288d410eeb311f0a205626a91af775a", "b288d410eeb311f0a205626a91af775b"]
+        "datasetIds": ["b288d410eeb311f0a205626a91af775a"]
     }
     
     # 读取skills
@@ -333,167 +337,149 @@ async def demonstrate_all_features():
     print("\n[1/7] 创建全功能 Agent...")
     agent = create_full_featured_agent()
     print(f"  ✓ Agent 名称: {agent.name}")
+    print(f"  ✓ 工作目录: {agent.workspace_root}")
     print(f"  ✓ 工具数量: {len(agent.tool_registry.list())}")
     print(f"  ✓ 子 Agent 数量: {len(agent.children)}")
     print(f"  ✓ 记忆槽数量: {len(agent.context_manager.memory_slots)}")
     print(f"  ✓ 上下文压缩: {agent.context_manager.compression_enabled}")
+    print(f"  ✓ 技能数量: {len(agent.skill_registry.list())}")
+    print(f"  ✓ MCP 服务器数量: {len(agent.mcp_servers)}")
 
-    # 功能 1: ReAct 框架 + 工具调用
-    print("\n[2/7] ReAct 框架 + 工具调用")
-    result = await agent.run("搜索关于人工智能的最新进展")
-    print(f"  用户: 搜索关于人工智能的最新进展")
-    print(f"  助手: {result.output[:100]}...")
-    print(f"  执行步骤数: {len(result.steps)}")
+    # # 功能 1: ReAct 框架 + 工具调用
+    # print("\n[2/7] ReAct 框架 + 工具调用")
+    # result = await agent.run("搜索关于人工智能的最新进展")
+    # print(f"  用户: 搜索关于人工智能的最新进展")
+    # print(f"  助手: {result.output[:100]}...")
+    # print(f"  执行步骤数: {len(result.steps)}")
 
-    # 功能 2 & 3: 多会话和多轮对话
-    print("\n[3/7] 多会话 + 多轮对话")
+    # # 功能 2 & 3: 多会话和多轮对话
+    # # print("\n[3/7] 多会话 + 多轮对话")
 
-    # 会话 A
-    session_a = "session-user-a"
-    print("\n  --- 会话 A: 用户张三 ---")
-    r1 = await agent.run_with_context("我叫张三，是一名产品经理", session_a)
-    print(f"    张三: 我叫张三，是一名产品经理")
-    print(f"    助手: {r1.output}")
+    # # 会话 A
+    # session_a = "session-user-a"
+    # print("\n  --- 会话 A: 用户张三 ---")
+    # r1 = await agent.run_with_context("我叫张三，是一名产品经理", session_a)
+    # print(f"    张三: 我叫张三，是一名产品经理")
+    # print(f"    助手: {r1.output}")
 
-    r2 = await agent.run_with_context("我从事什么工作？", session_a)
-    print(f"    张三: 我从事什么工作？")
-    print(f"    助手: {r2.output}")
+    # r2 = await agent.run_with_context("我从事什么工作？", session_a)
+    # print(f"    张三: 我从事什么工作？")
+    # print(f"    助手: {r2.output}")
 
-    # 会话 B
-    session_b = "session-user-b"
-    print("\n  --- 会话 B: 用户李四 ---")
-    r3 = await agent.run_with_context("我叫李四，是一名设计师", session_b)
-    print(f"    李四: 我叫李四，是一名设计师")
-    print(f"    助手: {r3.output}")
+    # # 会话 B
+    # session_b = "session-user-b"
+    # print("\n  --- 会话 B: 用户李四 ---")
+    # r3 = await agent.run_with_context("我叫李四，是一名设计师", session_b)
+    # print(f"    李四: 我叫李四，是一名设计师")
+    # print(f"    助手: {r3.output}")
 
-    # 功能 4: 多智能体协作
-    print("\n[4/7] 多智能体协作")
-    result = await agent.run(
-        "帮我搜索 2024 年 AI 领域的重大突破，"
-        "然后分析这些突破对行业的影响，生成一份报告"
-    )
-    print(f"  用户: 帮我搜索 2024 年 AI 领域的重大突破...")
-    print(f"  助手: {result.output[:150]}...")
-    print(f"  执行步骤数: {len(result.steps)}")
+    # # 功能 4: 多智能体协作
+    # print("\n[4/7] 多智能体协作")
+    # result = await agent.run(
+    #     "帮我搜索 2024 年 AI 领域的重大突破，"
+    #     "然后分析这些突破对行业的影响，生成一份报告"
+    # )
+    # print(f"  用户: 帮我搜索 2024 年 AI 领域的重大突破...")
+    # print(f"  助手: {result.output[:150]}...")
+    # print(f"  执行步骤数: {len(result.steps)}")
 
-    # 显示子 Agent 调用
-    for step in result.steps:
-        if "agent" in step.type.lower() or step.data.get("call"):
-            print(f"    → 调用: {step.data.get('call', 'N/A')}")
+    # # 显示子 Agent 调用
+    # for step in result.steps:
+    #     if "agent" in step.type.lower() or step.data.get("call"):
+    #         print(f"    → 调用: {step.data.get('call', 'N/A')}")
 
-    # 功能 5: 记忆功能
-    print("\n[5/7] 记忆功能")
-    session_memory = "memory-demo-session"
+    # # 功能 5: 记忆功能
+    # print("\n[5/7] 记忆功能")
+    # session_memory = "memory-demo-session"
 
-    await agent.run_with_context(
-        "我喜欢编程，主要使用 Python 和 TypeScript，"
-        "对人工智能和机器学习很感兴趣",
-        session_memory,
-    )
+    # await agent.run_with_context(
+    #     "我喜欢编程，主要使用 Python 和 TypeScript，"
+    #     "对人工智能和机器学习很感兴趣",
+    #     session_memory,
+    # )
 
-    # 查看生成的记忆
-    manager = agent.context_manager
-    memories = manager._load_memories(session_memory)
-    print(f"  生成的记忆记录数: {len(memories)}")
-    for mem in memories:
-        print(f"    - {mem.name}: {mem.content[:60]}...")
+    # # 查看生成的记忆
+    # manager = agent.context_manager
+    # memories = manager._load_memories(session_memory)
+    # print(f"  生成的记忆记录数: {len(memories)}")
+    # for mem in memories:
+    #     print(f"    - {mem.name}: {mem.content[:60]}...")
 
     # 功能 6: 流式输出
-    print("\n[6/7] 流式输出")
+    # print("\n[6/7] 流式输出")
 
-    context = agent.context_manager.get_or_create_context("stream-demo")
+    # context = agent.context_manager.get_or_create_context("stream-demo")
 
-    steps_count = [0]
+    # steps_count = [0]
 
-    def count_steps(step):
-        steps_count[0] += 1
-        print(f"    [{step.type}] {step.display_name or step.type}")
+    # def count_steps(step: AgentStep):
+    #     steps_count[0] += 1
+    #     print(f"    [{step.type}] {step.display_name or step.type} : {step.content.splitlines()[0][:60] if step.content else ''}...")
 
-    result = await agent.runtime.run_stream(
-        "查询数据库中的销售数据并进行分析",
-        context,
-        count_steps,
-    )
-    print(f"  总步骤数: {steps_count[0]}")
-    print(f"  结果: {result.output[:100]}...")
+    # result = await agent.runtime.run_stream(
+    #     "分析人工智能的发展现状",
+    #     context,
+    #     count_steps,
+    # )
+    # print(f"  总步骤数: {steps_count[0]}")
+    # print(f"  结果: {result.output}")
+    # # 功能 7: 对话终止
+    # print("\n[7/7] 对话终止")
+    # print(f"  初始终止状态: {agent.runtime._terminated}")
 
-    # 功能 7: 对话终止
-    print("\n[7/7] 对话终止")
-    print(f"  初始终止状态: {agent.runtime._terminated}")
+    # # 演示终止
+    # agent.runtime.terminate()
+    # print(f"  调用 terminate() 后: {agent.runtime._terminated}")
 
-    # 演示终止
-    agent.runtime.terminate()
-    print(f"  调用 terminate() 后: {agent.runtime._terminated}")
+    # # 重置
+    # agent.runtime.reset()
+    # print(f"  调用 reset() 后: {agent.runtime._terminated}")
 
-    # 重置
-    agent.runtime.reset()
-    print(f"  调用 reset() 后: {agent.runtime._terminated}")
+    # # 总结
+    # print("\n" + "=" * 70)
+    # print(" " * 25 + "演示完成！")
+    # print("=" * 70)
+    # print("\n功能总结:")
+    # print("  ✓ ReAct 框架 - 思考-行动-观察循环")
+    # print("  ✓ 工具调用 - 4 个自定义工具")
+    # print("  ✓ 上下文管理 - 压缩 + 截断")
+    # print("  ✓ 多会话 - 独立用户会话")
+    # print("  ✓ 多轮对话 - 历史记录维护")
+    # print("  ✓ 多智能体 - 2 个子 Agent 协作")
+    # print("  ✓ 记忆功能 - 3 个记忆槽")
+    # print("  ✓ 对话终止 - 运行时控制")
+    # print("  ✓ 流式输出 - 实时步骤展示")
+    # print("=" * 70)
 
-    # 总结
-    print("\n" + "=" * 70)
-    print(" " * 25 + "演示完成！")
+
+def serve_agent():
+    """演示所有功能"""
     print("=" * 70)
-    print("\n功能总结:")
-    print("  ✓ ReAct 框架 - 思考-行动-观察循环")
-    print("  ✓ 工具调用 - 4 个自定义工具")
-    print("  ✓ 上下文管理 - 压缩 + 截断")
-    print("  ✓ 多会话 - 独立用户会话")
-    print("  ✓ 多轮对话 - 历史记录维护")
-    print("  ✓ 多智能体 - 2 个子 Agent 协作")
-    print("  ✓ 记忆功能 - 3 个记忆槽")
-    print("  ✓ 对话终止 - 运行时控制")
-    print("  ✓ 流式输出 - 实时步骤展示")
+    print(" " * 18 + "PStock 全功能 Agent 演示")
     print("=" * 70)
 
+    # 检查 API Key
+    if not os.getenv("OPENAI_API_KEY"):
+        print("\n错误: 请设置 OPENAI_API_KEY 环境变量")
+        return
 
-# =============================================================================
-# 交互式对话模式
-# =============================================================================
-
-
-async def interactive_mode():
-    """交互式对话模式"""
+    # 创建 Agent
+    print("\n[1/7] 创建全功能 Agent...")
     agent = create_full_featured_agent()
-    session_id = "interactive-session"
-
-    print("\n" + "=" * 50)
-    print("全功能 Agent 交互式对话")
-    print("=" * 50)
-    print(f"\n已启动: {agent.name}")
-    print(f"工具: {[tool.name for tool in agent.tool_registry.list()]}")
-    print(f"子 Agent: {[child.name for child in agent.children]}")
-    print("\n输入 'quit' 或 'exit' 退出\n")
-
-    while True:
-        try:
-            user_input = input("你: ").strip()
-
-            if user_input.lower() in ['quit', 'exit', '退出']:
-                print("再见！")
-                break
-
-            if not user_input:
-                continue
-
-            result = await agent.run_with_context(user_input, session_id)
-
-            print(f"\n助手: {result.output}")
-
-            # 显示执行步骤
-            if len(result.steps) > 1:
-                print(f"\n[执行了 {len(result.steps)} 个步骤]")
-                for i, step in enumerate(result.steps[:5], 1):  # 只显示前 5 个
-                    print(
-                        f"  {i}. [{step.type}] {step.display_name or step.type}")
-                if len(result.steps) > 5:
-                    print(f"  ... 还有 {len(result.steps) - 5} 个步骤")
-
-        except KeyboardInterrupt:
-            print("\n\n对话被中断")
-            break
-        except Exception as e:
-            print(f"\n错误: {e}")
-
+    print(f"  ✓ Agent 名称: {agent.name}")
+    print(f"  ✓ 工作目录: {agent.workspace_root}")
+    print(f"  ✓ 工具数量: {len(agent.tool_registry.list())}")
+    print(f"  ✓ 子 Agent 数量: {len(agent.children)}")
+    print(f"  ✓ 记忆槽数量: {len(agent.context_manager.memory_slots)}")
+    print(f"  ✓ 上下文压缩: {agent.context_manager.compression_enabled}")
+    print(f"  ✓ 技能数量: {len(agent.skill_registry.list())}")
+    print(f"  ✓ MCP服务器数量: {len(agent.mcp_servers)}")
+    
+    registry.register(agent)
+    # Create server
+    server = AgentServer(registry)
+    # Run server with command line arguments
+    server.run()
 
 # =============================================================================
 # 主函数
@@ -502,12 +488,8 @@ async def interactive_mode():
 
 def main():
     """主函数"""
-    import sys
-
-    if len(sys.argv) > 1 and sys.argv[1] == "interactive":
-        asyncio.run(interactive_mode())
-    else:
-        asyncio.run(demonstrate_all_features())
+    # asyncio.run(demonstrate_all_features())
+    serve_agent()
 
 
 if __name__ == "__main__":

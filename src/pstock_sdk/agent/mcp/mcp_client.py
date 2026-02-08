@@ -1,17 +1,18 @@
 """
 MCP Client - Model Context Protocol Client
 
-Python implementation of MCP client for communicating with MCP servers.
-Supports both Streamable HTTP and SSE (Server-Sent Events) transports.
+使用官方 MCP Python SDK (pip install mcp) 连接 MCP 服务器。
+支持 StreamableHTTP 远程服务器连接。
 """
 
-import json
+import asyncio
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urljoin
 
 import httpx
 from loguru import logger
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 
 from .mcp_config import McpServerConfig
 
@@ -27,19 +28,11 @@ class McpToolDefinition:
     parameters: dict[str, Any] | None = None
 
 
-@dataclass
-class _CallToolResult:
-    """MCP 工具调用结果"""
-    content: list[dict[str, Any]] | None = None
-    structured_content: dict[str, Any] | None = None
-    is_error: bool = False
-
-
 class McpClient:
     """
     MCP 客户端
 
-    使用官方 MCP 协议实现，支持 Streamable HTTP 和 SSE 传输
+    使用官方 MCP Python SDK，支持 StreamableHTTP 传输
     """
 
     def __init__(self, config: McpServerConfig) -> None:
@@ -50,7 +43,59 @@ class McpClient:
             config: MCP 服务器配置
         """
         self._config = config
-        self._base_url = config.baseUrl.rstrip("/")
+        self._session: ClientSession | None = None
+        self._http_client: httpx.AsyncClient | None = None
+        self._client_context: Any | None = None
+        self._initialized = False
+        self._lock = asyncio.Lock()
+
+    def _create_http_client(self) -> httpx.AsyncClient:
+        """创建配置好认证信息的 HTTP 客户端"""
+        headers = dict(self._config.headers or {})
+        if self._config.apiKey and "Authorization" not in headers:
+            headers["Authorization"] = f"Bearer {self._config.apiKey}"
+
+        return httpx.AsyncClient(
+            headers=headers,
+            timeout=httpx.Timeout(60.0),
+        )
+
+    async def _get_session(self) -> ClientSession:
+        """
+        获取或创建 ClientSession
+
+        Returns:
+            ClientSession: MCP 客户端会话
+        """
+        async with self._lock:
+            if self._session is None:
+                await self._connect()
+
+            if not self._initialized:
+                await self._session.initialize()
+                self._initialized = True
+
+            return self._session
+
+    async def _connect(self) -> None:
+        """建立 MCP 连接"""
+        # 创建 HTTP 客户端
+        self._http_client = self._create_http_client()
+
+        # 创建 streamable_http_client 上下文
+        self._client_context = streamable_http_client(
+            url=self._config.baseUrl.rstrip("/"),
+            http_client=self._http_client,
+        )
+
+        # 进入上下文获取 streams
+        read_stream, write_stream, _ = await self._client_context.__aenter__()
+
+        # 创建 ClientSession
+        self._session = ClientSession(
+            read_stream=read_stream,
+            write_stream=write_stream,
+        )
 
     async def list_tools(self) -> list[McpToolDefinition]:
         """
@@ -59,7 +104,48 @@ class McpClient:
         Returns:
             工具定义列表
         """
-        return await self._with_client(self._list_tools)
+        try:
+            session = await self._get_session()
+            tools_response = await session.list_tools()
+
+            result = []
+            for tool in tools_response.tools:
+                result.append(self._map_tool_definition(tool))
+
+            return result
+        except Exception as e:
+            logger.error(f"Failed to list tools from MCP server {self._config.name}: {e}")
+            return []
+
+    def _map_tool_definition(self, tool: Any) -> McpToolDefinition:
+        """
+        映射工具定义
+
+        Args:
+            tool: 原始工具定义 (mcp.types.Tool)
+
+        Returns:
+            McpToolDefinition: 标准化的工具定义
+        """
+        # 获取 input_schema
+        input_schema = tool.input_schema if hasattr(tool, "input_schema") else {}
+
+        # 从 annotations 获取 display_name
+        display_name = None
+        if hasattr(tool, "annotations") and tool.annotations:
+            display_name = tool.annotations.get("title")
+
+        # 提取 properties 作为 parameters
+        parameters = None
+        if input_schema and isinstance(input_schema, dict):
+            parameters = input_schema.get("properties")
+
+        return McpToolDefinition(
+            name=tool.name,
+            display_name=display_name,
+            description=tool.description if hasattr(tool, "description") else None,
+            parameters=parameters,
+        )
 
     async def call_tool(self, name: str, args: Any) -> str:
         """
@@ -72,206 +158,76 @@ class McpClient:
         Returns:
             工具执行结果（字符串形式）
         """
-        return await self._with_client(
-            lambda client, headers: self._call_tool_and_stringify(client, name, args, headers)
-        )
-
-    async def _with_client(self, handler: Any) -> Any:
-        """
-        使用客户端执行操作
-
-        先尝试 Streamable HTTP，失败后回退到 SSE
-
-        Args:
-            handler: 异步处理函数
-
-        Returns:
-            处理结果
-        """
-        headers = self._build_headers()
-
-        # Try Streamable HTTP first, fall back to SSE if needed
-        streamable_error = None
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                return await handler(client, headers)
+            session = await self._get_session()
+
+            # 规范化参数
+            if args and isinstance(args, dict) and not isinstance(args, str):
+                normalized_args = args
+            else:
+                normalized_args = {}
+
+            result = await session.call_tool(name=name, arguments=normalized_args)
+            return self._stringify_tool_result(result)
         except Exception as e:
-            streamable_error = e
-            logger.debug(f"Streamable HTTP connection failed: {e}, trying SSE")
+            logger.error(f"Failed to call MCP tool {name}: {e}")
+            return f"Error calling MCP tool {name}: {e!s}"
 
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                return await handler(client, headers)
-        except Exception as sse_error:
-            raise ConnectionError(
-                f"Failed to connect to MCP server. "
-                f"Streamable HTTP error: {streamable_error}; SSE error: {sse_error}"
-            ) from sse_error
-
-    def _build_headers(self) -> dict[str, str]:
-        """
-        构建请求头
-
-        Returns:
-            请求头字典
-        """
-        headers: dict[str, str] = dict(self._config.headers or {})
-        if self._config.apiKey and "Authorization" not in headers:
-            headers["Authorization"] = f"Bearer {self._config.apiKey}"
-        return headers
-
-    async def _list_tools(
-        self,
-        client: httpx.AsyncClient,
-        headers: dict[str, str],
-    ) -> list[McpToolDefinition]:
-        """
-        获取工具列表
-
-        Args:
-            client: HTTP 客户端
-            headers: 请求头
-
-        Returns:
-            工具定义列表
-        """
-        url = urljoin(self._base_url, "/v1/tools")
-
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/list",
-            "params": {},
-        }
-
-        response = await client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
-
-        tools = data.get("result", {}).get("tools", [])
-        return [self._map_tool_definition(tool) for tool in tools]
-
-    def _map_tool_definition(self, tool: dict[str, Any]) -> McpToolDefinition:
-        """
-        映射工具定义
-
-        Args:
-            tool: 原始工具定义
-
-        Returns:
-            McpToolDefinition: 标准化的工具定义
-        """
-        input_schema = tool.get("inputSchema", {})
-        return McpToolDefinition(
-            name=tool.get("name", ""),
-            display_name=tool.get("annotations", {}).get("title"),
-            description=tool.get("description"),
-            parameters=input_schema.get("properties") if input_schema else None,
-        )
-
-    async def _call_tool_and_stringify(
-        self,
-        client: httpx.AsyncClient,
-        name: str,
-        args: Any,
-        headers: dict[str, str],
-    ) -> str:
-        """
-        调用工具并返回字符串结果
-
-        Args:
-            client: HTTP 客户端
-            name: 工具名称
-            args: 工具参数
-            headers: 请求头
-
-        Returns:
-            工具执行结果（字符串形式）
-        """
-        result = await self._call_tool(client, name, args, headers)
-        return self._stringify_tool_result(result)
-
-    async def _call_tool(
-        self,
-        client: httpx.AsyncClient,
-        name: str,
-        args: Any,
-        headers: dict[str, str],
-    ) -> _CallToolResult:
-        """
-        调用工具
-
-        Args:
-            client: HTTP 客户端
-            name: 工具名称
-            args: 工具参数
-            headers: 请求头
-
-        Returns:
-            CallToolResult: 工具调用结果
-        """
-        # Normalize args
-        normalized_args = {}
-        if args and isinstance(args, dict) and not isinstance(args, str):
-            normalized_args = args
-
-        url = urljoin(self._base_url, "/v1/tools")
-
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {
-                "name": name,
-                "arguments": normalized_args,
-            },
-        }
-
-        response = await client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
-
-        result_data = data.get("result", {})
-        return _CallToolResult(
-            content=result_data.get("content"),
-            structured_content=result_data.get("structuredContent"),
-            is_error=result_data.get("isError", False),
-        )
-
-    def _stringify_tool_result(self, result: _CallToolResult) -> str:
+    def _stringify_tool_result(self, result: Any) -> str:
         """
         将工具调用结果转换为字符串
 
         Args:
-            result: 工具调用结果
+            result: 工具调用结果 (mcp.types.CallToolResult)
 
         Returns:
             str: 字符串形式的结果
         """
         parts: list[str] = []
 
-        for block in result.content or []:
-            block_type = block.get("type", "")
-            if block_type == "text":
-                text = block.get("text", "")
-                if text:
-                    parts.append(text)
-            elif block_type == "image":
-                parts.append(f"[image:{block.get('mimeType', 'unknown')}]")
-            elif block_type == "audio":
-                parts.append(f"[audio:{block.get('mimeType', 'unknown')}]")
-            elif block_type == "resource":
-                parts.append(f"[resource:{block.get('uri', 'unknown')}]")
-            else:
-                parts.append(str(block))
+        # 处理 content 列表
+        if hasattr(result, "content") and result.content:
+            for item in result.content:
+                if hasattr(item, "text"):
+                    text = item.text
+                    if text:
+                        parts.append(text)
+                elif hasattr(item, "data"):
+                    # 处理图片、资源等二进制数据
+                    parts.append(f"[binary data: {type(item).__name__}]")
+                else:
+                    parts.append(str(item))
 
         if parts:
             return "\n".join(parts)
 
-        if result.structured_content:
-            return json.dumps(result.structured_content, ensure_ascii=False)
-
-        if result.is_error:
-            return "MCP tool returned an error with no content."
-
         return ""
+
+    async def close(self) -> None:
+        """关闭客户端连接"""
+        async with self._lock:
+            if self._client_context:
+                try:
+                    await self._client_context.__aexit__(None, None, None)
+                except Exception as e:
+                    logger.warning(f"Error closing MCP client context: {e}")
+                self._client_context = None
+
+            if self._http_client:
+                try:
+                    await self._http_client.aclose()
+                except Exception as e:
+                    logger.warning(f"Error closing HTTP client: {e}")
+                self._http_client = None
+
+            self._session = None
+            self._initialized = False
+
+    async def __aenter__(self):
+        """异步上下文管理器入口"""
+        await self._get_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """异步上下文管理器出口"""
+        await self.close()
