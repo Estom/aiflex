@@ -184,43 +184,10 @@ class Agent:
             self.tool_registry,
             self.skill_registry,
             self.config,
+            self.context_manager,
         )
 
-    async def run(self, task: str, context: AgentContext | None = None) -> AgentRunResult:
-        """
-        运行 Agent 任务
-
-        Args:
-            task: 用户任务
-            context: 运行时上下文
-
-        Returns:
-            AgentRunResult: 运行结果
-        """
-        await self._ensure_initialized()
-        return await self.runtime.run(task, context)
-
-    async def run_stream(
-        self,
-        task: str,
-        context: AgentContext,
-        emit: callable,  # (AgentStep) -> None
-    ) -> AgentRunResult:
-        """
-        流式运行 Agent
-
-        Args:
-            task: 用户任务
-            context: 运行时上下文
-            emit: 回调函数
-
-        Returns:
-            AgentRunResult: 运行结果
-        """
-        await self._ensure_initialized()
-        return await self.runtime.run_stream(task, context, emit)
-
-    async def run_with_context(
+    async def run(
         self,
         task: str,
         session_id: str | None = None,
@@ -238,23 +205,10 @@ class Agent:
             AgentRunResult: 运行结果，包含 session_id
         """
         await self._ensure_initialized()
-
-        # 获取或创建上下文
-        context = self.context_manager.get_or_create_context(session_id)
-
-        # 运行任务
-        result = await self.runtime.run(task, context)
-
-        # 更新上下文（添加对话到历史）
-        await self.context_manager.update_context(
-            context.session_id,
-            user_message=task,
-            assistant_response=result.output,
-        )
-
+        result = await self.runtime.run(task, session_id)
         return result
 
-    async def run_stream_with_context(
+    async def run_stream(
         self,
         task: str,
         session_id: str | None = None,
@@ -284,29 +238,19 @@ class Agent:
             if emit:
                 await emit(step)
 
-        # 获取或创建上下文
-        context = self.context_manager.get_or_create_context(session_id)
-
         # 运行任务
-        result = await self.runtime.run_stream(task, context, collect_steps)
-
-        # 更新上下文（添加对话到历史）
-        await self.context_manager.update_context(
-            context.session_id,
-            user_message=task,
-            assistant_response=result.output,
-        )
-
+        result = await self.runtime.run_stream(task, session_id, collect_steps)
         return result
 
-    def get_context_manager(self) -> AgentContextManager:
+
+    def create_session(self) -> str:
         """
         获取上下文管理器
 
         Returns:
             AgentContextManager: 上下文管理器实例
         """
-        return self.context_manager
+        return self.context_manager.get_context().session_id
 
     def get_session_context(self, session_id: str) -> AgentContext | None:
         """
@@ -602,6 +546,9 @@ class Agent:
                             mcp_server_config=cfg,
                         )
                     )
+        # 如果启用 MCP 非懒加载，注册 MCP 工具
+        if not self.mcp_lazy_load and self.mcp_servers:
+            asyncio.run(self._register_mcp_tools())
 
     async def _ensure_initialized(self) -> None:
         """确保已初始化"""
@@ -617,9 +564,7 @@ class Agent:
 
     async def _initialize(self) -> None:
         """初始化 Agent"""
-        # 如果启用 MCP 非懒加载，注册 MCP 工具
-        if not self.mcp_lazy_load and self.mcp_servers:
-            await self._register_mcp_tools()
+        pass
 
     async def _register_mcp_tools(self) -> None:
         """注册 MCP 工具"""

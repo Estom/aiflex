@@ -227,7 +227,7 @@ Examples:
         print("-" * 60)
 
         # Initialize context with empty history
-        context = AgentContext(history_messages=[])
+        session_id = agent.create_session()
 
         while True:
             try:
@@ -239,12 +239,8 @@ Examples:
                     break
 
                 print(f"\n{agent.name}: ", end="", flush=True)
-                result = await agent.run(user_input, context)
+                result = await agent.run(user_input, session_id)
                 print(result.output)
-
-                # Add conversation to history
-                context.history_messages.append(ChatMessage(role="user", content=user_input))
-                context.history_messages.append(ChatMessage(role="assistant", content=result.output))
 
                 # Print steps if any
                 if result.steps:

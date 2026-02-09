@@ -17,6 +17,7 @@ class McpServerConfig(dict):
         description: str | None = None,
         headers: dict[str, str] | None = None,
         enabled: bool = True,
+        transportType: str = "sse",
         **kwargs: Any,
     ):
         super().__init__(
@@ -26,6 +27,7 @@ class McpServerConfig(dict):
             description=description,
             headers=headers or {},
             enabled=enabled,
+            transportType=transportType,
             **kwargs,
         )
 

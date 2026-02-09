@@ -98,8 +98,7 @@ class AgentContextManager:
         self._memory_records: dict[str, list[MemoryRecord]] = {}
         self._compressed_messages: dict[str, list[ChatMessage]] = {}
 
-
-    def get_or_create_context(
+    def get_context(
         self,
         session_id: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -121,42 +120,13 @@ class AgentContextManager:
             session_id = str(uuid.uuid4())
 
         if session_id not in self._sessions:
-            history = []
-
-            # 如果有压缩后的消息，优先使用
-            if session_id in self._compressed_messages:
-                history = list(self._compressed_messages[session_id])
-            else:
-                # 如果启用了记忆功能，加载记忆并添加到历史
-                if self.memory_enabled and self.memory_slots:
-                    memories = self._load_memories(session_id)
-                    for memory in memories:
-                        memory_content = (
-                            f"[记忆: {memory.get('name', '')}] {memory.get('content', '')}"
-                        )
-                        history.append(
-                            ChatMessage(role="assistant", content=memory_content)
-                        )
-
             self._sessions[session_id] = AgentContext(
                 session_id=session_id,
                 metadata=metadata or {},
-                history_messages=history,
+                history_messages=[],
             )
 
         return self._sessions[session_id]
-
-    def get_context(self, session_id: str) -> AgentContext | None:
-        """
-        获取指定会话的上下文
-
-        Args:
-            session_id: 会话 ID
-
-        Returns:
-            AgentContext | None: 上下文对象，如果不存在则返回 None
-        """
-        return self._sessions.get(session_id)
 
     async def update_context(
         self,
@@ -180,10 +150,11 @@ class AgentContextManager:
         context = self.get_context(session_id)
         if context is None:
             # 如果上下文不存在，创建新的
-            context = self.get_or_create_context(session_id, metadata)
+            context = self.get_context(session_id, metadata)
 
         # 添加对话到历史
-        context.history_messages.append(ChatMessage(role="user", content=user_message))
+        context.history_messages.append(
+            ChatMessage(role="user", content=user_message))
         context.history_messages.append(
             ChatMessage(role="assistant", content=assistant_response)
         )
@@ -192,6 +163,49 @@ class AgentContextManager:
         if metadata:
             context.metadata.update(metadata)
 
+        self._after_update(session_id)
+
+    async def get_messages(self, session_id: str) -> list[ChatMessage]:
+        """
+        获取指定会话的聊天消息列表
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            list[ChatMessage]: 聊天消息列表
+        """
+        context = self.get_context(session_id)
+        history_messages = context.history_messages
+        # 添加记忆消息
+        memory = self._get_memory_message(session_id)
+        return [memory, *history_messages]
+
+    async def add_message(self, session_id: str, message: ChatMessage) -> None:
+        """
+        添加聊天消息列表到指定会话
+
+        Args:
+            session_id: 会话 ID
+            messages: 聊天消息列表
+        """
+        context = self.get_context(session_id)
+        context.history_messages.append(message)
+        await self._after_update(session_id)
+
+    async def add_messages(self, session_id: str, messages: list[ChatMessage]) -> None:
+        """
+        添加聊天消息列表到指定会话
+
+        Args:
+            session_id: 会话 ID
+            messages: 聊天消息列表
+        """
+        for message in messages:
+            self.add_message(session_id, message)
+
+    async def _after_update(self, session_id: str) -> None:
+        context = self.get_context(session_id)
         # 如果启用了压缩功能，判断是否需要压缩
         if self.compression_enabled and self._should_compress(context):
             await self._compress_context(session_id, context)
@@ -199,9 +213,34 @@ class AgentContextManager:
             # 限制历史轮次
             self._trim_history(context)
 
-        # 如果启用了记忆功能，触发记忆生成
-        if self.memory_enabled and self.llm and self.memory_slots:
+        # 如果启用了记忆功能，并且是LLM更新的消息
+        if self.memory_enabled and self.llm and self.memory_slots and context.history_messages[-1].get("role") == "assistant":
             await self._generate_and_update_memory(session_id)
+
+    def _get_memory_message(self, session_id: str) -> ChatMessage:
+        """
+        获取指定会话的记忆消息列表
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            ChatMessage: 记忆消息列表
+        """
+        # 如果启用了记忆功能，加载记忆并添加到历史
+        chat_message = None
+        if self.memory_enabled and self.memory_slots:
+            memories = self._load_memories(session_id)
+            memory_content_list = []
+            for memory in memories:
+                memory_content = (
+                    f"[记忆: {memory.get('name', '')}]: {memory.get('content', '')}"
+                )
+                memory_content_list.append(memory_content)
+            content = "系统中当前存在以下记忆：\n\n" + "\n".join(memory_content_list)
+            chat_message = ChatMessage(role="assistant", content=content)
+
+        return chat_message
 
     def _load_memories(self, session_id: str) -> list[MemoryRecord]:
         """
@@ -284,7 +323,8 @@ class AgentContextManager:
             return False
 
         message_count = len(context.history_messages)
-        trigger_threshold = int(self.max_context_length * self.compression_trigger_ratio)
+        trigger_threshold = int(
+            self.max_context_length * self.compression_trigger_ratio)
 
         return message_count >= trigger_threshold
 

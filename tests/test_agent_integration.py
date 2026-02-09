@@ -360,7 +360,7 @@ class TestContextManagement:
             max_history_rounds=3,  # 最多保留3轮（6条消息）
         )
 
-        context = manager.get_or_create_context("test-session")
+        context = manager.get_context("test-session")
 
         # 添加10轮对话（20条消息）
         for i in range(10):
@@ -383,7 +383,7 @@ class TestContextManagement:
         )
 
         session_id = "test-session"
-        context = manager.get_or_create_context(session_id)
+        context = manager.get_context(session_id)
 
         # 添加大量消息
         for i in range(20):
@@ -405,7 +405,7 @@ class TestContextManagement:
             compression_trigger_ratio=0.8,
         )
 
-        context = manager.get_or_create_context("test")
+        context = manager.get_context("test")
 
         # 添加40条消息（少于触发阈值 50 * 0.8 = 40）
         for i in range(39):
@@ -521,8 +521,8 @@ class TestSessionsAndConversations:
         await agent.run_with_context("测试3", "session-3")
 
         # 获取上下文管理器并清除所有
-        manager = agent.get_context_manager()
-        manager.clear_all()
+        manager = agent.clear_session()
+
 
         # 验证所有会话已清除
         assert len(manager.list_sessions()) == 0
@@ -678,7 +678,7 @@ class TestMemoryFeature:
         manager._memory_records["session-1"] = records
 
         # 获取上下文
-        context = manager.get_or_create_context("session-1")
+        context = manager.get_context("session-1")
 
         # 验证记忆被添加到历史消息
         memory_messages = [msg for msg in context.history_messages if "[记忆:" in msg.get("content", "")]
@@ -903,7 +903,7 @@ class TestStreamOutput:
         def collect_steps(step: AgentStep) -> None:
             steps_collected.append(step)
 
-        context = agent.context_manager.get_or_create_context("test-session")
+        context = agent.context_manager.get_context("test-session")
         result = await agent.runtime.run_stream("测试任务", context, collect_steps)
 
         # 验证步骤被收集

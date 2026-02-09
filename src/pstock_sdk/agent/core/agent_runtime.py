@@ -5,11 +5,13 @@ Agent Runtime - Agent 运行时实现
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from loguru import logger
 
+from .agent_context import AgentContextManager
 from .interfaces import (
     AgentContext,
     AgentRunResult,
@@ -52,11 +54,13 @@ class AgentRuntime:
         tool_registry: ToolRegistry,
         skill_registry: SkillRegistry,
         config: AgentRuntimeConfig,
+        context_manager: AgentContextManager,
     ):
         self.llm = llm
         self.tool_registry = tool_registry
         self.skill_registry = skill_registry
         self.config = config
+        self.context_manager = context_manager
         self._terminated = False
 
         # 默认 instructions
@@ -74,30 +78,38 @@ class AgentRuntime:
         """重置终止状态，用于下次运行"""
         self._terminated = False
 
-    async def run(self, task: str, context: AgentContext | None = None) -> AgentRunResult:
+    async def run(self, task: str, session_id: str | None = None) -> AgentRunResult:
         """
         运行 Agent 任务
 
         Args:
             task: 用户任务
-            context: 运行时上下文
+            session_id: 会话 ID，如果为 None 则自动生成
 
         Returns:
             AgentRunResult: 运行结果
         """
+        # 获取或创建上下文
+        context = self.context_manager.get_context(session_id)
+
         steps: list[AgentStep] = []
         iteration = 0
 
         # 构建消息列表
         messages: list[ChatMessage] = [
             {"role": "system", "content": self._build_system_prompt()},
-            *self._get_history_messages(context),
+            * await self.context_manager.get_messages(session_id),
             {"role": "user", "content": task},
         ]
+        # 记录用户最新提问的历史消息
+        await self.context_manager.add_message(session_id, {
+            "role": "user", 
+            "content": task
+        })
 
         # ReAct 循环
         while iteration < self.config.max_steps:
-            # 检查终止标志
+            # 检查终止标志-只需要模型开启前执行即可，其他步骤无需打断
             if self._terminated:
                 terminated_step = build_agent_step(
                     "terminated",
@@ -124,31 +136,17 @@ class AgentRuntime:
                 reply.get("raw"),
             )
             steps.append(thought_step)
+            # 记录模型回复历史消息
+            await self.context_manager.add_message(session_id, {
+                "role": "assistant",
+                "content": content,
+                "tool_calls": tool_calls,
+            })
 
             # 如果有工具调用
             if tool_calls:
-                messages.append({
-                    "role": "assistant",
-                    "content": content,
-                    "tool_calls": tool_calls,
-                })
-
                 # 执行每个工具调用
                 for call in tool_calls:
-                    # 检查终止标志
-                    if self._terminated:
-                        terminated_step = build_agent_step(
-                            "terminated",
-                            "会话已被终止",
-                            "会话终止",
-                        )
-                        steps.append(terminated_step)
-                        self.reset()
-                        return AgentRunResult(
-                            output="[会话已终止]",
-                            steps=steps,
-                        )
-
                     action_step = self._build_tool_step(call, content)
                     steps.append(action_step)
 
@@ -163,8 +161,8 @@ class AgentRuntime:
                     )
                     steps.append(observation_step)
 
-                    # 添加工具结果到消息
-                    messages.append({
+                    # 添加工具结果到历史消息
+                    await self.context_manager.add_message({
                         "role": "tool",
                         "tool_call_id": call["id"],
                         "name": call["name"],
@@ -204,27 +202,37 @@ class AgentRuntime:
     async def run_stream(
         self,
         task: str,
-        context: AgentContext,
-        emit: callable,  # (AgentStep) -> None
+        session_id: str | None = None,
+        emit: Callable[[AgentStep], None] | None = None,
     ) -> AgentRunResult:
         """
         流式运行 Agent（用于实时输出）
 
         Args:
             task: 用户任务
-            context: 运行时上下文
+            session_id: 会话 ID，如果为 None 则自动生成
             emit: 回调函数，用于发送步骤
 
         Returns:
             AgentRunResult: 运行结果
         """
+        # 获取或创建上下文
+        context = self.context_manager.get_context(session_id)
+        session_id = context.session_id
+
         iteration = 0
 
         messages: list[ChatMessage] = [
             {"role": "system", "content": self._build_system_prompt()},
-            *self._get_history_messages(context),
+            *await self._get_history_messages(context),
             {"role": "user", "content": task},
         ]
+        
+        # 记录用户最新提问的历史消息
+        await self.context_manager.add_message(session_id, {
+            "role": "user", 
+            "content": task
+        })
 
         while iteration < self.config.max_steps:
             # 检查终止标志
@@ -234,7 +242,8 @@ class AgentRuntime:
                     "会话已被终止",
                     "会话终止",
                 )
-                emit(terminated_step)
+                if emit:
+                    emit(terminated_step)
                 self.reset()
                 return AgentRunResult(output="[会话已终止]")
 
@@ -249,31 +258,23 @@ class AgentRuntime:
                 "思考中",
                 reply.get("raw"),
             )
-            emit(agent_step)
+            if emit:
+                emit(agent_step)
 
+            # 记录模型回复历史消息
+            await self.context_manager.add_message(session_id, {
+                "role": "assistant",
+                "content": content,
+                "tool_calls": tool_calls,
+            })
+            
             # 如果有工具调用
             if tool_calls:
-                messages.append({
-                    "role": "assistant",
-                    "content": content,
-                    "tool_calls": tool_calls,
-                })
-
                 for call in tool_calls:
-                    # 检查终止标志
-                    if self._terminated:
-                        terminated_step = build_agent_step(
-                            "terminated",
-                            "会话已被终止",
-                            "会话终止",
-                        )
-                        emit(terminated_step)
-                        self.reset()
-                        return AgentRunResult(output="[会话已终止]")
-
                     # 发送动作步骤
                     action_step = self._build_tool_step(call, content)
-                    emit(action_step)
+                    if emit:
+                        emit(action_step)
 
                     # 执行工具
                     observation = await self._execute_tool(call, context)
@@ -286,9 +287,10 @@ class AgentRuntime:
                         reply.get("raw"),
                         {"call": call["name"]},
                     )
-                    emit(observation_step)
-
-                    messages.append({
+                    if emit:
+                        emit(observation_step)
+                    # 记录工具调用历史消息
+                    await self.context_manager.add_message({
                         "role": "tool",
                         "tool_call_id": call["id"],
                         "name": call["name"],
@@ -306,7 +308,8 @@ class AgentRuntime:
                     "最终回答",
                     reply.get("raw"),
                 )
-                emit(final_step)
+                if emit:
+                    emit(final_step)
                 return AgentRunResult(output=content.strip())
 
             # 空响应
@@ -316,13 +319,15 @@ class AgentRuntime:
                 "回答丢失",
                 reply.get("raw"),
             )
-            emit(empty_step)
+            if emit:
+                emit(empty_step)
             iteration += 1
 
         # 达到最大步数
         fallback = "Error: Maximum steps reached without a final answer."
         final_step = build_agent_step("error", fallback, "回答错误")
-        emit(final_step)
+        if emit:
+            emit(final_step)
         return AgentRunResult(output=fallback)
 
     def _build_system_prompt(self) -> str:
@@ -350,7 +355,8 @@ class AgentRuntime:
         ]
 
         if self.config.workspace_root:
-            parts.append(f"Your workspace root is at: {self.config.workspace_root}")
+            parts.append(
+                f"Your workspace root is at: {self.config.workspace_root}")
 
         return "\n\n".join(parts)
 
@@ -361,7 +367,8 @@ class AgentRuntime:
         except json.JSONDecodeError:
             parsed_args = call["arguments"]
 
-        action_input = json.dumps(parsed_args) if not isinstance(parsed_args, str) else parsed_args
+        action_input = json.dumps(parsed_args) if not isinstance(
+            parsed_args, str) else parsed_args
 
         return build_agent_step(
             "action",

@@ -465,7 +465,7 @@ async def demo_stream_output():
     print("=" * 50)
 
     agent = create_agent_with_tools_and_context()
-    context = agent.context_manager.get_or_create_context("stream-demo")
+    context = agent.context_manager.get_context("stream-demo")
 
     print("\n--- 流式执行任务 ---")
     task = "查询北京的天气，然后计算 25 + 37 的结果"

@@ -2,21 +2,30 @@
 MCP Client - Model Context Protocol Client
 
 使用官方 MCP Python SDK (pip install mcp) 连接 MCP 服务器。
-支持 StreamableHTTP 远程服务器连接。
+支持 SSE 和 StreamableHTTP 两种传输方式。
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any
+from enum import Enum
+from typing import Any, AsyncGenerator
 
 import httpx
 from loguru import logger
 from mcp import ClientSession
+from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
 
 from .mcp_config import McpServerConfig
 
 CLIENT_INFO = {"name": "pstock-mcp-client", "version": "0.1.0"}
+
+
+class TransportType(str, Enum):
+    """MCP 传输类型"""
+    SSE = "sse"
+    STREAMABLE_HTTP = "streamable-http"
 
 
 @dataclass
@@ -32,7 +41,7 @@ class McpClient:
     """
     MCP 客户端
 
-    使用官方 MCP Python SDK，支持 StreamableHTTP 传输
+    使用官方 MCP Python SDK，支持 SSE 和 StreamableHTTP 传输
     """
 
     def __init__(self, config: McpServerConfig) -> None:
@@ -43,59 +52,55 @@ class McpClient:
             config: MCP 服务器配置
         """
         self._config = config
-        self._session: ClientSession | None = None
-        self._http_client: httpx.AsyncClient | None = None
-        self._client_context: Any | None = None
-        self._initialized = False
-        self._lock = asyncio.Lock()
+        self._transport_type = self._get_transport_type()
 
-    def _create_http_client(self) -> httpx.AsyncClient:
-        """创建配置好认证信息的 HTTP 客户端"""
-        headers = dict(self._config.headers or {})
-        if self._config.apiKey and "Authorization" not in headers:
+    def _get_transport_type(self) -> TransportType:
+        """从配置获取传输类型"""
+        transport = self._config.get("transportType", "sse")
+        try:
+            return TransportType(transport)
+        except ValueError:
+            logger.warning(
+                f"Unknown transport type '{transport}', defaulting to 'sse'"
+            )
+            return TransportType.SSE
+
+    @asynccontextmanager
+    async def _session(self) -> AsyncGenerator[ClientSession, None]:
+        """
+        创建并初始化 ClientSession 上下文
+
+        Yields:
+            ClientSession: 已初始化的 MCP 客户端会话
+        """
+        base_url = self._config.baseUrl.rstrip("/")
+
+        # 准备认证头
+        headers = {}
+        if self._config.apiKey:
             headers["Authorization"] = f"Bearer {self._config.apiKey}"
+        if self._config.headers:
+            headers.update(self._config.headers)
 
-        return httpx.AsyncClient(
-            headers=headers,
-            timeout=httpx.Timeout(60.0),
-        )
-
-    async def _get_session(self) -> ClientSession:
-        """
-        获取或创建 ClientSession
-
-        Returns:
-            ClientSession: MCP 客户端会话
-        """
-        async with self._lock:
-            if self._session is None:
-                await self._connect()
-
-            if not self._initialized:
-                await self._session.initialize()
-                self._initialized = True
-
-            return self._session
-
-    async def _connect(self) -> None:
-        """建立 MCP 连接"""
-        # 创建 HTTP 客户端
-        self._http_client = self._create_http_client()
-
-        # 创建 streamable_http_client 上下文
-        self._client_context = streamable_http_client(
-            url=self._config.baseUrl.rstrip("/"),
-            http_client=self._http_client,
-        )
-
-        # 进入上下文获取 streams
-        read_stream, write_stream, _ = await self._client_context.__aenter__()
-
-        # 创建 ClientSession
-        self._session = ClientSession(
-            read_stream=read_stream,
-            write_stream=write_stream,
-        )
+        if self._transport_type == TransportType.SSE:
+            logger.info(f"Connecting to MCP server {self._config.name} using SSE transport")
+            async with sse_client(url=base_url, headers=headers or None, timeout=60.0) as (
+                read_stream,
+                write_stream,
+            ):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+                    yield session
+        else:
+            logger.info(f"Connecting to MCP server {self._config.name} using StreamableHTTP transport")
+            # StreamableHTTP 也支持 headers
+            async with streamable_http_client(url=base_url, headers=headers or None) as (
+                read_stream,
+                write_stream,
+            ):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+                    yield session
 
     async def list_tools(self) -> list[McpToolDefinition]:
         """
@@ -104,17 +109,30 @@ class McpClient:
         Returns:
             工具定义列表
         """
+        import traceback
+        import anyio
+
         try:
-            session = await self._get_session()
-            tools_response = await session.list_tools()
+            async with self._session() as session:
+                tools_response = await session.list_tools()
 
-            result = []
-            for tool in tools_response.tools:
-                result.append(self._map_tool_definition(tool))
+                result = []
+                for tool in tools_response.tools:
+                    result.append(self._map_tool_definition(tool))
 
-            return result
-        except Exception as e:
+                return result
+        except anyio.get_cancelled_exc_class():
+            logger.warning(f"Connection to MCP server {self._config.name} was cancelled")
+            return []
+        except BaseException as e:
             logger.error(f"Failed to list tools from MCP server {self._config.name}: {e}")
+            # 尝试获取 TaskGroup 的子异常
+            if hasattr(e, "__cause__") and e.__cause__ is not None:
+                logger.error(f"Caused by: {e.__cause__}")
+            if hasattr(e, "__notes__"):
+                for note in getattr(e, "__notes__", []):
+                    logger.error(f"Error note: {note}")
+            logger.debug(traceback.format_exc())
             return []
 
     def _map_tool_definition(self, tool: Any) -> McpToolDefinition:
@@ -128,23 +146,18 @@ class McpClient:
             McpToolDefinition: 标准化的工具定义
         """
         # 获取 input_schema
-        input_schema = tool.input_schema if hasattr(tool, "input_schema") else {}
+        input_schema = tool.inputSchema if hasattr(tool, "inputSchema") else {}
 
         # 从 annotations 获取 display_name
         display_name = None
         if hasattr(tool, "annotations") and tool.annotations:
             display_name = tool.annotations.get("title")
 
-        # 提取 properties 作为 parameters
-        parameters = None
-        if input_schema and isinstance(input_schema, dict):
-            parameters = input_schema.get("properties")
-
         return McpToolDefinition(
             name=tool.name,
             display_name=display_name,
             description=tool.description if hasattr(tool, "description") else None,
-            parameters=parameters,
+            parameters=input_schema,
         )
 
     async def call_tool(self, name: str, args: Any) -> str:
@@ -159,16 +172,15 @@ class McpClient:
             工具执行结果（字符串形式）
         """
         try:
-            session = await self._get_session()
-
             # 规范化参数
             if args and isinstance(args, dict) and not isinstance(args, str):
                 normalized_args = args
             else:
                 normalized_args = {}
 
-            result = await session.call_tool(name=name, arguments=normalized_args)
-            return self._stringify_tool_result(result)
+            async with self._session() as session:
+                result = await session.call_tool(name=name, arguments=normalized_args)
+                return self._stringify_tool_result(result)
         except Exception as e:
             logger.error(f"Failed to call MCP tool {name}: {e}")
             return f"Error calling MCP tool {name}: {e!s}"
@@ -202,32 +214,3 @@ class McpClient:
             return "\n".join(parts)
 
         return ""
-
-    async def close(self) -> None:
-        """关闭客户端连接"""
-        async with self._lock:
-            if self._client_context:
-                try:
-                    await self._client_context.__aexit__(None, None, None)
-                except Exception as e:
-                    logger.warning(f"Error closing MCP client context: {e}")
-                self._client_context = None
-
-            if self._http_client:
-                try:
-                    await self._http_client.aclose()
-                except Exception as e:
-                    logger.warning(f"Error closing HTTP client: {e}")
-                self._http_client = None
-
-            self._session = None
-            self._initialized = False
-
-    async def __aenter__(self):
-        """异步上下文管理器入口"""
-        await self._get_session()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """异步上下文管理器出口"""
-        await self.close()
