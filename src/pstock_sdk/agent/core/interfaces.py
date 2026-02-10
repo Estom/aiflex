@@ -129,3 +129,4 @@ class ChatHistoryMessage:
     steps: list[AgentStep] | None = None
     timestamp: str | None = None
     chat_id: str | None = None
+    chat_messages: list[ChatMessage] | None = None
