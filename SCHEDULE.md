@@ -17,8 +17,8 @@
 - [x] √支持记忆功能
 - [x] √支持Coding工具
 - [x] √支持CodeSpace功能
-- [x] 支持AgentSkills功能
-- [x] 增加对话终止功能
+- [x] √支持AgentSkills功能
+- [x] √增加对话终止功能
 
 
 ### 1.2.0 创建基础智能体
