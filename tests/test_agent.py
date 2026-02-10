@@ -58,7 +58,7 @@ async def test_agent_run():
 
     result = await agent.run("测试任务")
 
-    assert result["output"] == "测试响应"
+    assert result.output == "测试响应"
 
 
 def test_build_agent_step():
@@ -69,9 +69,9 @@ def test_build_agent_step():
         "思考中",
     )
 
-    assert step["type"] == "thought"
-    assert step["content"] == "思考内容"
-    assert step["display_name"] == "思考中"
+    assert step.type == "thought"
+    assert step.content == "思考内容"
+    assert step.display_name == "思考中"
 
 
 def test_tool_registry():

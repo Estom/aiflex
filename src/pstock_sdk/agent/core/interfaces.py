@@ -8,6 +8,12 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 from typing import TypedDict
 
+# 为了避免循环导入，使用 TYPE_CHECKING
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..memory.memory import MemoryRecord
+
 
 class ToolDefinition(TypedDict):
     """工具定义，符合 OpenAI function calling 格式"""
@@ -75,6 +81,7 @@ class ChatMessage(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_call_id: str
     name: str
+    is_compression: bool  # 是否为压缩消息
 
 
 class LLMResponse(TypedDict, total=False):
@@ -106,22 +113,6 @@ class AgentStep:
 
 
 @dataclass
-class AgentContext:
-    """Agent 运行时上下文"""
-    session_id: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-    history_messages: list[ChatMessage] = field(default_factory=list)
-    workspace_root: str | None = None
-
-
-@dataclass
-class AgentRunResult:
-    """Agent 运行结果"""
-    output: str
-    steps: list[AgentStep] = field(default_factory=list)
-
-
-@dataclass
 class ChatHistoryMessage:
     """聊天历史消息"""
     role: str  # 'user' | 'assistant'
@@ -130,3 +121,23 @@ class ChatHistoryMessage:
     timestamp: str | None = None
     chat_id: str | None = None
     chat_messages: list[ChatMessage] | None = None
+    is_compression: bool = False  # 是否为压缩消息
+
+
+@dataclass
+class AgentContext:
+    """Agent 运行时上下文"""
+    session_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    history_messages: list[ChatMessage] = field(default_factory=list)
+    chat_history_messages: list[ChatHistoryMessage] = field(default_factory=list)
+    memory_records: list["MemoryRecord"] = field(default_factory=list)
+    workspace_root: str | None = None
+
+
+@dataclass
+class AgentRunResult:
+    """Agent 运行结果"""
+    output: str
+    steps: list[AgentStep] = field(default_factory=list)
+    chat_messages: list[ChatMessage] = field(default_factory=list)  # 本轮对话的消息列表

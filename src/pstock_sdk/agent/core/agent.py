@@ -33,7 +33,7 @@ from ..tools.search_text_tool import SearchTextTool
 from ..tools.shell_tool import ShellTool
 from ..tools.tool_registry import ToolRegistry
 from ..tools.write_file_tool import WriteFileTool
-from .agent_context import AgentContextManager
+from .agent_context_manager import AgentContextManager
 from .agent_runtime import AgentRuntime, AgentRuntimeConfig
 from .interfaces import (
     LLM,
@@ -134,6 +134,10 @@ class Agent:
             max_steps=options.max_steps,
             instructions=options.instructions,
             workspace_root=workspace_root,
+            compression_enabled=options.compression_enabled,
+            max_context_length=options.max_context_length,
+            compression_trigger_ratio=options.compression_trigger_ratio,
+            compression_ratio=options.compression_ratio,
         )
 
         # LLM
@@ -163,12 +167,6 @@ class Agent:
             compression_trigger_ratio=options.compression_trigger_ratio,
             compression_ratio=options.compression_ratio,
             llm=options.llm,
-            tool_registry=self.tool_registry,
-            skill_registry=self.skill_registry,
-            agent_name=self.config.name,
-            agent_description=self.config.description,
-            agent_instructions=self.config.instructions,
-            workspace_root=workspace_root,
         )
 
         # Codespace 标记
@@ -193,7 +191,6 @@ class Agent:
             self.tool_registry,
             self.skill_registry,
             self.config,
-            self.context_manager,
         )
 
     async def run(
@@ -211,10 +208,28 @@ class Agent:
             session_id: 会话 ID，如果为 None 则自动生成
 
         Returns:
-            AgentRunResult: 运行结果，包含 session_id
+            AgentRunResult: 运行结果
         """
         await self._ensure_initialized()
-        result = await self.runtime.run(task, session_id)
+
+        # 获取或创建上下文
+        await self.context_manager.check_and_compress_history(session_id)
+        context = self.context_manager.get_context(session_id)
+
+        # 运行任务
+        result = await self.runtime.run(task, context)
+
+        # 对话结束后，同时添加用户消息和助手回复到历史
+        await self.context_manager.add_user_message(
+            context.session_id, task
+        )
+        await self.context_manager.add_assistant_message(
+            context.session_id,
+            result.output,
+            result.steps,
+            result.chat_messages,  # 本轮对话的消息列表
+        )
+
         return result
 
     async def run_stream(
@@ -234,9 +249,12 @@ class Agent:
             emit: 流式输出回调函数 (AgentStep) -> None
 
         Returns:
-            AgentRunResult: 运行结果，包含 session_id
+            AgentRunResult: 运行结果
         """
         await self._ensure_initialized()
+
+        # 获取或创建上下文
+        context = self.context_manager.get_context(session_id)
 
         # 收集步骤用于流式输出
         steps_buffer: list[AgentStep] = []
@@ -248,16 +266,28 @@ class Agent:
                 await emit(step)
 
         # 运行任务
-        result = await self.runtime.run_stream(task, session_id, collect_steps)
+        result = await self.runtime.run_stream(task, context, collect_steps)
+
+        # 对话结束后，同时添加用户消息和助手回复到历史
+        await self.context_manager.add_user_message(
+            context.session_id, task
+        )
+        await self.context_manager.add_assistant_message(
+            context.session_id,
+            result.output,
+            steps_buffer,
+            result.chat_messages,  # 本轮对话的消息列表
+        )
+
         return result
 
 
     def create_session(self) -> str:
         """
-        获取上下文管理器
+        创建一个新的会话
 
         Returns:
-            AgentContextManager: 上下文管理器实例
+            str: 会话 ID
         """
         return self.context_manager.get_context().session_id
 

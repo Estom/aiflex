@@ -11,7 +11,6 @@ from typing import Any
 
 from loguru import logger
 
-from .agent_context import AgentContextManager
 from .interfaces import (
     AgentContext,
     AgentRunResult,
@@ -24,16 +23,23 @@ from .interfaces import (
 from ..tools.tool_registry import ToolRegistry
 from ..skills.skill_registry import SkillRegistry
 from ...utils.agent_step import build_agent_step
+from .step_context_manager import StepContextManager
 
 
 @dataclass
 class AgentRuntimeConfig:
     """Agent Runtime 配置"""
+
     name: str
     description: str
     max_steps: int = 5
     instructions: str | None = None
     workspace_root: str | None = None
+    # 压缩相关配置
+    compression_enabled: bool = False
+    max_context_length: int = 50
+    compression_trigger_ratio: float = 0.8
+    compression_ratio: float = 0.3
 
 
 class AgentRuntime:
@@ -41,7 +47,6 @@ class AgentRuntime:
     Agent 运行时
 
     负责：
-    - 构建 system prompt
     - 执行 ReAct 循环
     - 调用 LLM
     - 执行工具调用
@@ -54,13 +59,11 @@ class AgentRuntime:
         tool_registry: ToolRegistry,
         skill_registry: SkillRegistry,
         config: AgentRuntimeConfig,
-        context_manager: AgentContextManager,
     ):
         self.llm = llm
         self.tool_registry = tool_registry
         self.skill_registry = skill_registry
         self.config = config
-        self.context_manager = context_manager
         self._terminated = False
 
         # 默认 instructions
@@ -78,34 +81,49 @@ class AgentRuntime:
         """重置终止状态，用于下次运行"""
         self._terminated = False
 
-    async def run(self, task: str, session_id: str | None = None) -> AgentRunResult:
+    async def run(
+        self,
+        task: str,
+        context: AgentContext,
+    ) -> AgentRunResult:
         """
         运行 Agent 任务
 
         Args:
             task: 用户任务
-            session_id: 会话 ID，如果为 None 则自动生成
+            context: Agent 上下文
 
         Returns:
             AgentRunResult: 运行结果
         """
-        # 获取或创建上下文
-        context = self.context_manager.get_context(session_id)
+        # 创建 StepContextManager 管理本次对话
+        step_manager = StepContextManager(
+            context=context,
+            task=task,
+            agent_name=self.config.name,
+            agent_description=self.config.description,
+            agent_instructions=self.config.instructions,
+            workspace_root=self.config.workspace_root,
+            skill_registry=self.skill_registry,
+            compression_enabled=self.config.compression_enabled,
+            max_context_length=self.config.max_context_length,
+            compression_trigger_ratio=self.config.compression_trigger_ratio,
+            compression_ratio=self.config.compression_ratio,
+            llm=self.llm,
+        )
 
         steps: list[AgentStep] = []
         iteration = 0
 
-        # 记录用户最新提问的历史消息
-        await self.context_manager.add_message(session_id, {
-            "role": "user",
-            "content": task
-        })
+        # 添加用户消息到本次对话
+        step_manager.add_user_message(task)
 
         # ReAct 循环
         while iteration < self.config.max_steps:
-            # 每次循环前重新构建消息列表，获取最新的历史消息（包含系统提示词）
-            messages: list[ChatMessage] = await self.context_manager.get_messages(session_id)
-            # 检查终止标志-只需要模型开启前执行即可，其他步骤无需打断
+            # 检查并压缩消息（如果需要）
+            await step_manager.check_and_compress()
+
+            # 检查终止标志
             if self._terminated:
                 terminated_step = build_agent_step(
                     "terminated",
@@ -117,7 +135,11 @@ class AgentRuntime:
                 return AgentRunResult(
                     output="[会话已终止]",
                     steps=steps,
+                    chat_messages=step_manager.get_messages(),
                 )
+
+            # 获取当前消息列表
+            messages: list[ChatMessage] = step_manager.get_current_messages()
 
             # 调用 LLM
             reply = await self.llm.chat(messages, self.tool_registry.definitions())
@@ -132,12 +154,9 @@ class AgentRuntime:
                 reply.get("raw"),
             )
             steps.append(thought_step)
-            # 记录模型回复历史消息
-            await self.context_manager.add_message(session_id, {
-                "role": "assistant",
-                "content": content,
-                "tool_calls": tool_calls,
-            })
+
+            # 记录助手消息
+            step_manager.add_assistant_message(content, tool_calls)
 
             # 如果有工具调用
             if tool_calls:
@@ -157,13 +176,12 @@ class AgentRuntime:
                     )
                     steps.append(observation_step)
 
-                    # 添加工具结果到历史消息
-                    await self.context_manager.add_message(session_id, {
-                        "role": "tool",
-                        "tool_call_id": call["id"],
-                        "name": call["name"],
-                        "content": observation,
-                    })
+                    # 添加工具结果到消息列表
+                    step_manager.add_tool_message(
+                        tool_call_id=call["id"],
+                        name=call["name"],
+                        content=observation,
+                    )
 
                 iteration += 1
                 continue
@@ -177,7 +195,11 @@ class AgentRuntime:
                     reply.get("raw"),
                 )
                 steps.append(final_step)
-                return AgentRunResult(output=content.strip(), steps=steps)
+                return AgentRunResult(
+                    output=content.strip(),
+                    steps=steps,
+                    chat_messages=step_manager.get_messages(),
+                )
 
             # 空响应
             empty_step = build_agent_step(
@@ -193,12 +215,16 @@ class AgentRuntime:
         fallback = "Error: Maximum steps reached without a final answer."
         final_step = build_agent_step("error", fallback, "回答错误")
         steps.append(final_step)
-        return AgentRunResult(output=fallback, steps=steps)
+        return AgentRunResult(
+            output=fallback,
+            steps=steps,
+            chat_messages=step_manager.get_messages(),
+        )
 
     async def run_stream(
         self,
         task: str,
-        session_id: str | None = None,
+        context: AgentContext,
         emit: Callable[[AgentStep], None] | None = None,
     ) -> AgentRunResult:
         """
@@ -206,27 +232,37 @@ class AgentRuntime:
 
         Args:
             task: 用户任务
-            session_id: 会话 ID，如果为 None 则自动生成
+            context: Agent 上下文
             emit: 回调函数，用于发送步骤
 
         Returns:
             AgentRunResult: 运行结果
         """
-        # 获取或创建上下文
-        context = self.context_manager.get_context(session_id)
-        session_id = context.session_id
+        # 创建 StepContextManager 管理本次对话
+        step_manager = StepContextManager(
+            context=context,
+            task=task,
+            agent_name=self.config.name,
+            agent_description=self.config.description,
+            agent_instructions=self.config.instructions,
+            workspace_root=self.config.workspace_root,
+            skill_registry=self.skill_registry,
+            compression_enabled=self.config.compression_enabled,
+            max_context_length=self.config.max_context_length,
+            compression_trigger_ratio=self.config.compression_trigger_ratio,
+            compression_ratio=self.config.compression_ratio,
+            llm=self.llm,
+        )
 
         iteration = 0
 
-        # 记录用户最新提问的历史消息
-        await self.context_manager.add_message(session_id, {
-            "role": "user",
-            "content": task
-        })
+        # 添加用户消息到本次对话
+        step_manager.add_user_message(task)
 
         while iteration < self.config.max_steps:
-            # 每次循环前重新构建消息列表，获取最新的历史消息（包含系统提示词）
-            messages: list[ChatMessage] = await self.context_manager.get_messages(session_id)
+            # 检查并压缩消息（如果需要）
+            await step_manager.check_and_compress()
+
             # 检查终止标志
             if self._terminated:
                 terminated_step = build_agent_step(
@@ -237,7 +273,13 @@ class AgentRuntime:
                 if emit:
                     await emit(terminated_step)
                 self.reset()
-                return AgentRunResult(output="[会话已终止]")
+                return AgentRunResult(
+                    output="[会话已终止]",
+                    chat_messages=step_manager.get_messages(),
+                )
+
+            # 获取当前消息列表
+            messages: list[ChatMessage] = step_manager.get_current_messages()
 
             reply = await self.llm.chat(messages, self.tool_registry.definitions())
             content = reply["message"].get("content")
@@ -253,13 +295,9 @@ class AgentRuntime:
             if emit:
                 await emit(agent_step)
 
-            # 记录模型回复历史消息
-            await self.context_manager.add_message(session_id, {
-                "role": "assistant",
-                "content": content,
-                "tool_calls": tool_calls,
-            })
-            
+            # 记录助手消息
+            step_manager.add_assistant_message(content, tool_calls)
+
             # 如果有工具调用
             if tool_calls:
                 for call in tool_calls:
@@ -281,13 +319,13 @@ class AgentRuntime:
                     )
                     if emit:
                         await emit(observation_step)
-                    # 记录工具调用历史消息
-                    await self.context_manager.add_message(session_id,{
-                        "role": "tool",
-                        "tool_call_id": call["id"],
-                        "name": call["name"],
-                        "content": observation,
-                    })
+
+                    # 记录工具调用消息
+                    step_manager.add_tool_message(
+                        tool_call_id=call["id"],
+                        name=call["name"],
+                        content=observation,
+                    )
 
                 iteration += 1
                 continue
@@ -302,7 +340,10 @@ class AgentRuntime:
                 )
                 if emit:
                     await emit(final_step)
-                return AgentRunResult(output=content.strip())
+                return AgentRunResult(
+                    output=content.strip(),
+                    chat_messages=step_manager.get_messages(),
+                )
 
             # 空响应
             empty_step = build_agent_step(
@@ -320,7 +361,10 @@ class AgentRuntime:
         final_step = build_agent_step("error", fallback, "回答错误")
         if emit:
             await emit(final_step)
-        return AgentRunResult(output=fallback)
+        return AgentRunResult(
+            output=fallback,
+            chat_messages=step_manager.get_messages(),
+        )
 
     def _build_tool_step(self, call: ToolCall, thought: str | None) -> AgentStep:
         """构建工具调用步骤"""
@@ -329,8 +373,7 @@ class AgentRuntime:
         except json.JSONDecodeError:
             parsed_args = call["arguments"]
 
-        action_input = json.dumps(parsed_args) if not isinstance(
-            parsed_args, str) else parsed_args
+        action_input = json.dumps(parsed_args) if not isinstance(parsed_args, str) else parsed_args
 
         return build_agent_step(
             "action",
@@ -356,9 +399,3 @@ class AgentRuntime:
         except Exception as e:
             logger.error(f"Error executing tool {call['name']}: {e}")
             return f"Error executing tool {call['name']}: {e!s}"
-
-    def _get_history_messages(self, context: AgentContext | None) -> list[ChatMessage]:
-        """获取历史消息"""
-        if not context:
-            return []
-        return context.history_messages or []
