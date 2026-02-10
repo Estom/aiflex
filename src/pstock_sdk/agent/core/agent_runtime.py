@@ -95,20 +95,16 @@ class AgentRuntime:
         steps: list[AgentStep] = []
         iteration = 0
 
-        # 构建消息列表
-        messages: list[ChatMessage] = [
-            {"role": "system", "content": self._build_system_prompt()},
-            * await self.context_manager.get_messages(session_id),
-            {"role": "user", "content": task},
-        ]
         # 记录用户最新提问的历史消息
         await self.context_manager.add_message(session_id, {
-            "role": "user", 
+            "role": "user",
             "content": task
         })
 
         # ReAct 循环
         while iteration < self.config.max_steps:
+            # 每次循环前重新构建消息列表，获取最新的历史消息（包含系统提示词）
+            messages: list[ChatMessage] = await self.context_manager.get_messages(session_id)
             # 检查终止标志-只需要模型开启前执行即可，其他步骤无需打断
             if self._terminated:
                 terminated_step = build_agent_step(
@@ -162,7 +158,7 @@ class AgentRuntime:
                     steps.append(observation_step)
 
                     # 添加工具结果到历史消息
-                    await self.context_manager.add_message({
+                    await self.context_manager.add_message(session_id, {
                         "role": "tool",
                         "tool_call_id": call["id"],
                         "name": call["name"],
@@ -222,19 +218,15 @@ class AgentRuntime:
 
         iteration = 0
 
-        messages: list[ChatMessage] = [
-            {"role": "system", "content": self._build_system_prompt()},
-            *await self._get_history_messages(context),
-            {"role": "user", "content": task},
-        ]
-        
         # 记录用户最新提问的历史消息
         await self.context_manager.add_message(session_id, {
-            "role": "user", 
+            "role": "user",
             "content": task
         })
 
         while iteration < self.config.max_steps:
+            # 每次循环前重新构建消息列表，获取最新的历史消息（包含系统提示词）
+            messages: list[ChatMessage] = await self.context_manager.get_messages(session_id)
             # 检查终止标志
             if self._terminated:
                 terminated_step = build_agent_step(
@@ -290,7 +282,7 @@ class AgentRuntime:
                     if emit:
                         emit(observation_step)
                     # 记录工具调用历史消息
-                    await self.context_manager.add_message({
+                    await self.context_manager.add_message(session_id,{
                         "role": "tool",
                         "tool_call_id": call["id"],
                         "name": call["name"],
@@ -329,36 +321,6 @@ class AgentRuntime:
         if emit:
             emit(final_step)
         return AgentRunResult(output=fallback)
-
-    def _build_system_prompt(self) -> str:
-        """构建系统提示词"""
-        # 工具列表通过模型接口的tools字段传递，不直接放到系统提示词中
-        # tool_list = "\n".join(
-        #     f"- {tool.name}: {tool.description}"
-        #     for tool in self.tool_registry.list()
-        # )
-
-        # 技能列表
-        skills_list = "\n".join(
-            f"- {skill['name']} in path {skill.get('path', '')}: {skill['description']}"
-            for skill in self.skill_registry.list()
-        )
-
-        parts = [
-            f"You are an agent named {self.config.name}.",
-            self.config.description,
-            self.config.instructions or "",
-            # "You can call tools via function calling when helpful.",
-            # f"Available tools:\n{tool_list}" if tool_list else "No tools are available.",
-            "You can use skills as follows and access them via read file tool:",
-            f"Available skills:\n{skills_list}" if skills_list else "No skills are available.",
-        ]
-
-        if self.config.workspace_root:
-            parts.append(
-                f"Your workspace root is at: {self.config.workspace_root}")
-
-        return "\n\n".join(parts)
 
     def _build_tool_step(self, call: ToolCall, thought: str | None) -> AgentStep:
         """构建工具调用步骤"""

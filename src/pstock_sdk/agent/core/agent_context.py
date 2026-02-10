@@ -71,6 +71,12 @@ class AgentContextManager:
         compression_trigger_ratio: float = 0.8,
         compression_ratio: float = 0.3,
         llm: LLM | None = None,
+        tool_registry: Any = None,
+        skill_registry: Any = None,
+        agent_name: str | None = None,
+        agent_description: str | None = None,
+        agent_instructions: str | None = None,
+        workspace_root: str | None = None,
     ):
         """
         初始化上下文管理器
@@ -84,6 +90,12 @@ class AgentContextManager:
             compression_trigger_ratio: 压缩触发比例（达到此比例时触发压缩，0.0-1.0）
             compression_ratio: 压缩后保留的比例（0.0-1.0）
             llm: LLM 实例，用于记忆生成和上下文压缩
+            tool_registry: 工具注册表
+            skill_registry: 技能注册表
+            agent_name: Agent 名称
+            agent_description: Agent 描述
+            agent_instructions: Agent 指令
+            workspace_root: 工作区根目录
         """
         self.max_history_rounds = max_history_rounds
         self.memory_enabled = memory_enabled
@@ -93,10 +105,15 @@ class AgentContextManager:
         self.compression_ratio = compression_ratio
         self.llm = llm
         self.memory_slots: list[MemorySlotConfig] = memory_slots or []
+        self.tool_registry = tool_registry
+        self.skill_registry = skill_registry
+        self.agent_name = agent_name or "Agent"
+        self.agent_description = agent_description or ""
+        self.agent_instructions = agent_instructions
+        self.workspace_root = workspace_root
         # 内置InMemory的历史记录和记忆存储
         self._sessions: dict[str, AgentContext] = {}
         self._memory_records: dict[str, list[MemoryRecord]] = {}
-        self._compressed_messages: dict[str, list[ChatMessage]] = {}
 
     def get_context(
         self,
@@ -169,17 +186,60 @@ class AgentContextManager:
         """
         获取指定会话的聊天消息列表
 
+        包含系统提示词、记忆消息和历史消息。
+
         Args:
             session_id: 会话 ID
 
         Returns:
             list[ChatMessage]: 聊天消息列表
         """
-        context = self.get_context(session_id)
-        history_messages = context.history_messages
+        # 构建消息列表：系统提示词 -> 记忆消息 -> 历史消息
+        messages: list[ChatMessage] = [
+            self._get_system_message(),
+        ]
+
         # 添加记忆消息
         memory = self._get_memory_message(session_id)
-        return [memory, *history_messages]
+        if memory:
+            messages.append(memory)
+
+        # 添加历史消息
+        messages.extend(self._get_history_messages(session_id))
+
+        return messages
+
+    def _get_system_message(self) -> ChatMessage:
+        """获取系统提示词"""
+        return ChatMessage(role="system", content=self._build_system_prompt())
+    
+    def _get_history_messages(self, session_id: str) -> list[ChatMessage]:
+        """获取指定会话的历史消息列表"""
+        context = self.get_context(session_id)
+        return context.history_messages
+    
+    def _build_system_prompt(self) -> str:
+        """构建系统提示词"""
+        # 技能列表
+        skills_list = ""
+        if self.skill_registry:
+            skills_list = "\n".join(
+                f"- {skill['name']} in path {skill.get('path', '')}: {skill['description']}"
+                for skill in self.skill_registry.list()
+            )
+
+        parts = [
+            f"You are an agent named {self.agent_name}.",
+            self.agent_description,
+            self.agent_instructions or "Use ReAct style with OpenAI function calling. Call tools when helpful and provide a concise final answer when done.",
+            "You can use skills as follows and access them via read file tool:",
+            f"Available skills:\n{skills_list}" if skills_list else "No skills are available.",
+        ]
+
+        if self.workspace_root:
+            parts.append(f"Your workspace root is at: {self.workspace_root}")
+
+        return "\n\n".join(parts)
 
     async def add_message(self, session_id: str, message: ChatMessage) -> None:
         """
@@ -202,19 +262,22 @@ class AgentContextManager:
             messages: 聊天消息列表
         """
         for message in messages:
-            self.add_message(session_id, message)
+            context = self.get_context(session_id)
+            context.history_messages.append(message)
+            
+        self._after_update(session_id)
 
     async def _after_update(self, session_id: str) -> None:
-        context = self.get_context(session_id)
-        # 如果启用了压缩功能，判断是否需要压缩
-        if self.compression_enabled and self._should_compress(context):
-            await self._compress_context(session_id, context)
+        messages = await self.get_messages(session_id)
+        # 如果启用了压缩功能，判断是否需要压缩---只在用户输入后进行压缩
+        if self._should_compress(session_id) and self._get_history_messages(session_id)[-1].get['role'] == "user":
+            await self._compress_context(session_id)
         else:
             # 限制历史轮次
-            self._trim_history(context)
+            self._trim_history(session_id)
 
-        # 如果启用了记忆功能，并且是LLM更新的消息
-        if self.memory_enabled and self.llm and self.memory_slots and context.history_messages[-1].get("role") == "assistant":
+        # 如果启用了记忆功能，并且是LLM更新的消息---只在模型问答后进行记忆总结
+        if self.memory_enabled and self.llm and self.memory_slots and self._get_history_messages(session_id)[-1].get("role") == "assistant":
             await self._generate_and_update_memory(session_id)
 
     def _get_memory_message(self, session_id: str) -> ChatMessage:
@@ -291,7 +354,7 @@ class AgentContextManager:
                 records_map[new_record.name] = new_record
             self._memory_records[session_id] = list(records_map.values())
 
-    def _trim_history(self, context: AgentContext) -> None:
+    def _trim_history(self, session_id: str) -> None:
         """
         修剪历史消息，保留最近 N 轮对话
 
@@ -301,6 +364,7 @@ class AgentContextManager:
             context: 上下文对象
         """
         max_messages = self.max_history_rounds * 2
+        context = self.get_context(session_id)
         if len(context.history_messages) > max_messages:
             # 使用 deque 保留最近的 max_messages 条消息
             trimmed = deque(
@@ -309,9 +373,59 @@ class AgentContextManager:
             )
             context.history_messages = list(trimmed)
 
-    def _should_compress(self, context: AgentContext) -> bool:
+    def _estimate_tokens(self, messages: list[ChatMessage]) -> int:
+        """
+        估算消息列表的 token 数量
+
+        使用近似计算：
+        - 中文字符（CJK Unified Ideographs）：约 1 token / 2 字符
+        - ASCII 字符：约 1 token / 4 字符
+        - 其他字符：约 1 token / 3 字符
+
+        Args:
+            messages: 消息列表
+
+        Returns:
+            int: 估算的 token 数量
+        """
+        import re
+
+        total_chars = 0
+        chinese_chars = 0
+        ascii_chars = 0
+        other_chars = 0
+
+        for msg in messages:
+            content = msg.get("content", "")
+            if not content:
+                continue
+
+            # 统计各类字符数量
+            # CJK 统一汉字范围（基本）
+            chinese_pattern = re.compile(r'[\u4e00-\u9fff\u3400-\u4dbf\U00020000-\U0002a6df\U0002a700-\U0002b73f\U0002b740-\U0002b81f\U0002b820-\U0002ceaf]')
+            chinese = len(chinese_pattern.findall(content))
+            ascii_count = len(re.findall(r'[\x00-\x7f]', content))
+            other = len(content) - chinese - ascii_count
+
+            chinese_chars += chinese
+            ascii_chars += ascii_count
+            other_chars += other
+            total_chars += len(content)
+
+        # 近似计算 token 数量
+        # 中文: ~2 字符/token, ASCII: ~4 字符/token, 其他: ~3 字符/token
+        tokens = (chinese_chars // 2) + (ascii_chars // 4) + (other_chars // 3)
+
+        # 加上一些额外的开销（role、tool_calls 等字段）
+        overhead = len(messages) * 10  # 每条消息约 10 tokens 的结构开销
+
+        return tokens + overhead
+
+    def _should_compress(self, session_id: str) -> bool:
         """
         判断是否需要压缩上下文
+
+        基于 token 长度而非消息数量来判定。
 
         Args:
             context: 上下文对象
@@ -322,13 +436,15 @@ class AgentContextManager:
         if not self.compression_enabled:
             return False
 
-        message_count = len(context.history_messages)
+        # 估算当前历史消息的 token 数量
+        history_messages = self._get_history_messages(session_id)
+        estimated_tokens = self._estimate_tokens(history_messages)
         trigger_threshold = int(
             self.max_context_length * self.compression_trigger_ratio)
 
-        return message_count >= trigger_threshold
+        return estimated_tokens >= trigger_threshold
 
-    async def _compress_context(self, session_id: str, context: AgentContext) -> None:
+    async def _compress_context(self, session_id: str) -> None:
         """
         压缩上下文
 
@@ -338,7 +454,7 @@ class AgentContextManager:
         """
         if not self.llm:
             # 如果没有 LLM，回退到简单修剪
-            self._trim_history(context)
+            self._trim_history(session_id)
             return
 
         from ..memory.compressor import ContextCompressor
@@ -352,18 +468,16 @@ class AgentContextManager:
 
         try:
             # 压缩历史消息
-            compressed_messages = await compressor.compress(context.history_messages)
-
-            # 保存压缩后的消息
-            self._compressed_messages[session_id] = compressed_messages
+            history_messages = self._get_history_messages(session_id)
+            compressed_messages = await compressor.compress(history_messages)
 
             # 更新上下文使用压缩后的消息
-            context.history_messages = compressed_messages
+            self.get_context(session_id).history_messages = compressed_messages
 
         except Exception as e:
             # 如果压缩失败，回退到简单修剪
             print(f"Context compression failed: {e}")
-            self._trim_history(context)
+            self._trim_history(session_id)
 
     def clear_context(self, session_id: str) -> bool:
         """
@@ -377,14 +491,11 @@ class AgentContextManager:
         """
         existed = (
             session_id in self._sessions
-            or session_id in self._compressed_messages
             or session_id in self._memory_records
         )
 
         if session_id in self._sessions:
             del self._sessions[session_id]
-        if session_id in self._compressed_messages:
-            del self._compressed_messages[session_id]
         if session_id in self._memory_records:
             del self._memory_records[session_id]
 
@@ -393,7 +504,6 @@ class AgentContextManager:
     def clear_all(self) -> None:
         """清除所有会话的上下文"""
         self._sessions.clear()
-        self._compressed_messages.clear()
         self._memory_records.clear()
 
     def list_sessions(self) -> list[str]:
@@ -413,15 +523,3 @@ class AgentContextManager:
             int: 会话数量
         """
         return len(self._sessions)
-
-    def set_max_history_rounds(self, max_rounds: int) -> None:
-        """
-        设置最大历史轮次
-
-        Args:
-            max_rounds: 最大轮次
-        """
-        self.max_history_rounds = max_rounds
-        # 对所有现有会话修剪历史
-        for context in self._sessions.values():
-            self._trim_history(context)

@@ -160,6 +160,12 @@ class Agent:
             compression_trigger_ratio=options.compression_trigger_ratio,
             compression_ratio=options.compression_ratio,
             llm=options.llm,
+            tool_registry=self.tool_registry,
+            skill_registry=self.skill_registry,
+            agent_name=self.config.name,
+            agent_description=self.config.description,
+            agent_instructions=self.config.instructions,
+            workspace_root=options.workspace_root,
         )
 
         # Codespace 标记

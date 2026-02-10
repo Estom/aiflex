@@ -289,11 +289,11 @@ def create_full_featured_agent() -> Agent:
         # .with_children([research_agent, analyst_agent])
 
         # ==================== 上下文管理配置 ====================
-        .with_max_history_rounds(3)
+        .with_max_history_rounds(30)
 
         # ==================== 上下文压缩配置 ====================
         .with_compression_enabled(True)
-        .with_max_context_length(80)
+        .with_max_context_length(3000)
         .with_compression_trigger_ratio(0.75)
         .with_compression_ratio(0.35)
 
