@@ -310,14 +310,15 @@ class AgentContextManager:
         context = self.get_context(session_id)
         history_messages = context.chat_history_messages
 
-        if not history_messages:
+        min_messages = 2
+        if not history_messages or len(history_messages) <= min_messages:
             return
 
         # 创建压缩器
         compressor = ContextCompressor(
             llm=self.llm,
             compression_ratio=self.compression_ratio,
-            min_messages=2,
+            min_messages=min_messages,
         )
 
         try:
@@ -332,26 +333,23 @@ class AgentContextManager:
             compressed = await compressor.compress(chat_messages)
 
             if compressed and len(compressed) > 0:
-                # 获取压缩摘要
-                summary = ""
+                compressed_history_messages = []
                 for msg in compressed:
-                    if msg.get("content"):
-                        summary = msg["content"]
-                        break
-
-                # 添加压缩类型的历史消息
-                compression_message = ChatHistoryMessage(
-                    role="assistant",
-                    content=summary,
-                    steps=None,
-                    timestamp=datetime.now().isoformat(),
-                    chat_id=None,
-                    chat_messages=None,
-                    is_compression=True,
-                )
+                    # 添加压缩类型的历史消息
+                    compression_message = ChatHistoryMessage(
+                        role="assistant",
+                        content=msg.content,
+                        steps=None,
+                        timestamp=datetime.now().isoformat(),
+                        chat_id=None,
+                        chat_messages=None,
+                        is_compression=msg.is_compression,
+                    )
+                    
+                    compressed_history_messages.append(compression_message)
 
                 # 添加到历史消息的开头（这样后续构建时会从这里开始）
-                context.chat_history_messages.insert(0, compression_message)
+                context.chat_history_messages = compressed_history_messages
 
         except Exception as e:
             # 如果压缩失败，回退到简单修剪

@@ -254,6 +254,7 @@ class Agent:
         await self._ensure_initialized()
 
         # 获取或创建上下文
+        await self.context_manager.check_and_compress_history(session_id)
         context = self.context_manager.get_context(session_id)
 
         # 收集步骤用于流式输出

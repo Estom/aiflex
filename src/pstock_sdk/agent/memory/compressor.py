@@ -173,6 +173,7 @@ class ContextCompressor:
             return ChatMessage(
                 role="assistant",
                 content=f"[历史对话摘要]\n{summary}",
+                is_compression=True,
             )
 
         except Exception:

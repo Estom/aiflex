@@ -71,7 +71,7 @@ class StepContextManager:
         self.skill_registry = skill_registry
         self.compression_enabled = compression_enabled
         self.max_context_length = max_context_length
-        self.compression_trigger_ratio = compression_trigger_ratio
+        self.compression_trigger_ratio = 0.9
         self.compression_ratio = compression_ratio
         self.llm = llm
 
@@ -81,8 +81,6 @@ class StepContextManager:
         # 存储本次对话的消息列表（不包括系统提示词和记忆消息）
         self._messages: list[ChatMessage] = []
 
-        # 初始时检查是否需要压缩历史上下文
-        self._has_compressed_history = False
 
     def add_user_message(self, content: str) -> ChatMessage:
         """
@@ -259,7 +257,7 @@ class StepContextManager:
 
         return result
 
-    async def check_and_compress(self) -> None:
+    async def check_and_compress_messages(self) -> None:
         """
         检查并压缩消息（如果需要）
 
@@ -283,14 +281,16 @@ class StepContextManager:
         # 获取当前需要压缩的消息（不包括系统提示词和记忆消息）
         messages_to_compress = self._messages.copy()
 
-        if not messages_to_compress:
+        min_messages = 2
+        if not messages_to_compress or len(messages_to_compress) <= min_messages:
             return
+        
 
         # 创建压缩器
         compressor = ContextCompressor(
             llm=self.llm,
             compression_ratio=self.compression_ratio,
-            min_messages=2,
+            min_messages=min_messages,
         )
 
         try:
@@ -298,11 +298,8 @@ class StepContextManager:
             compressed = await compressor.compress(messages_to_compress)
 
             if compressed and len(compressed) > 0:
-                # 插入压缩标记消息
-                compression_msg = ChatMessage(role="assistant", content="[上下文压缩标记]", is_compression=True)
                 # 将压缩后的消息和压缩标记一起处理
-                self._messages = [compression_msg] + compressed
-                self._has_compressed_history = True
+                self._messages = compressed
 
         except Exception as e:
             # 如果压缩失败，保持原样

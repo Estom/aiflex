@@ -121,7 +121,7 @@ class AgentRuntime:
         # ReAct 循环
         while iteration < self.config.max_steps:
             # 检查并压缩消息（如果需要）
-            await step_manager.check_and_compress()
+            await step_manager.check_and_compress_messages()
 
             # 检查终止标志
             if self._terminated:
@@ -261,7 +261,7 @@ class AgentRuntime:
 
         while iteration < self.config.max_steps:
             # 检查并压缩消息（如果需要）
-            await step_manager.check_and_compress()
+            await step_manager.check_and_compress_messages()
 
             # 检查终止标志
             if self._terminated:
