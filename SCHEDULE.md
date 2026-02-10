@@ -15,8 +15,8 @@
 - [x] √支持多智能体
 - [x] √支持知识库，引入了RagFlow
 - [x] √支持记忆功能
-- [x] 支持Coding工具
-- [x] 支持CodeSpace功能
+- [x] √支持Coding工具
+- [x] √支持CodeSpace功能
 - [x] 支持AgentSkills功能
 - [x] 增加对话终止功能
 

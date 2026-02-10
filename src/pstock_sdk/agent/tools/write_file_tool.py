@@ -8,9 +8,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..core.interfaces import AgentContext, ToolDefinition
+from ..core.interfaces import AgentContext
 from ..tools.base_tool import BaseTool
-from ...utils.path_utils import gather_allowed_roots, resolve_within_allowed_roots
 
 
 class WriteFileTool(BaseTool):
@@ -45,14 +44,13 @@ class WriteFileTool(BaseTool):
             return 'Error: `file_path` and `content` are required.'
 
         workspace_root = self._get_workspace_root(context)
-        allowed_roots = gather_allowed_roots(workspace_root, context)
-        resolved_path = resolve_within_allowed_roots(allowed_roots, parsed["file_path"])
+        resolved_path = self._resolve_path(workspace_root, parsed["file_path"])
         if not resolved_path:
-            return f"Error: file_path must be within the workspace. Received: {parsed['file_path']}"
+            return f"Error: invalid file_path: {parsed['file_path']}"
 
         # 检查是否是目录
         if os.path.isdir(resolved_path):
-            return f"Error: path is a directory, not a file: {os.path.relpath(resolved_path, workspace_root)}"
+            return f"Error: path is a directory, not a file: {resolved_path}"
 
         try:
             # 创建父目录
@@ -61,8 +59,7 @@ class WriteFileTool(BaseTool):
             # 写入文件
             await asyncio.to_thread(Path(resolved_path).write_text, parsed["content"], encoding="utf-8")
 
-            rel_path = os.path.relpath(resolved_path, workspace_root) or os.path.basename(resolved_path)
-            return f"OK: wrote {len(parsed['content'])} characters to {rel_path}"
+            return f"OK: wrote {len(parsed['content'])} characters to {resolved_path}"
         except Exception as e:
             return f"Error writing file: {e!s}"
 

@@ -9,9 +9,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..core.interfaces import AgentContext, ToolDefinition
+from ..core.interfaces import AgentContext
 from ..tools.base_tool import BaseTool
-from ...utils.path_utils import gather_allowed_roots, resolve_within_allowed_roots
 
 
 class ListDirectoryTool(BaseTool):
@@ -47,15 +46,14 @@ class ListDirectoryTool(BaseTool):
             return 'Error: `dir_path` is required and must be a non-empty string.'
 
         workspace_root = self._get_workspace_root(context)
-        allowed_roots = gather_allowed_roots(workspace_root, context)
-        dir_path = resolve_within_allowed_roots(allowed_roots, params["dir_path"])
+        dir_path = self._resolve_path(workspace_root, params["dir_path"])
         if not dir_path:
-            return f"Error: dir_path must be within allowed roots. Received: {params['dir_path']}"
+            return f"Error: invalid dir_path: {params['dir_path']}"
 
         if not os.path.isdir(dir_path):
             return f"Error: Path is not a directory: {dir_path}"
 
-        ignore_patterns = params.get("ignore", [])
+        ignore_patterns = params.get("ignore") or []
         if not isinstance(ignore_patterns, list):
             ignore_patterns = []
 

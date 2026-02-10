@@ -10,9 +10,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..core.interfaces import AgentContext, ToolDefinition
+from ..core.interfaces import AgentContext
 from ..tools.base_tool import BaseTool
-from ...utils.path_utils import gather_allowed_roots, resolve_within_allowed_roots
 
 
 def _normalize_line_endings(value: str) -> str:
@@ -78,27 +77,26 @@ class EditFileTool(BaseTool):
             return 'Error: `file_path`, `old_string`, and `new_string` are required.'
 
         workspace_root = self._get_workspace_root(context)
-        allowed_roots = gather_allowed_roots(workspace_root, context)
-        resolved_path = resolve_within_allowed_roots(allowed_roots, parsed["file_path"])
+        resolved_path = self._resolve_path(workspace_root, parsed["file_path"])
         if not resolved_path:
-            return f"Error: file_path must be within the workspace. Received: {parsed['file_path']}"
+            return f"Error: invalid file_path: {parsed['file_path']}"
 
-        expected = max(1, int(parsed.get("expected_replacements", 1)))
+        expected = max(1, int(parsed.get("expected_replacements") or 1))
 
         # 处理文件创建
         if not parsed["old_string"]:
             if os.path.exists(resolved_path):
-                return f"Error: cannot create file because it already exists: {os.path.relpath(resolved_path, workspace_root)}"
+                return f"Error: cannot create file because it already exists: {resolved_path}"
 
             Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
             await asyncio.to_thread(Path(resolved_path).write_text, parsed["new_string"], encoding="utf-8")
-            return f"OK: created file {os.path.relpath(resolved_path, workspace_root)} ({len(parsed['new_string'])} characters)"
+            return f"OK: created file {resolved_path} ({len(parsed['new_string'])} characters)"
 
         # 读取文件
         try:
             raw_content = await asyncio.to_thread(Path(resolved_path).read_text, encoding="utf-8")
         except FileNotFoundError:
-            return f"Error: file not found. Use an empty old_string to create {os.path.relpath(resolved_path, workspace_root)}."
+            return f"Error: file not found. Use an empty old_string to create {resolved_path}."
         except Exception as e:
             return f"Error reading file: {e!s}"
 
@@ -111,10 +109,10 @@ class EditFileTool(BaseTool):
         # 执行替换
         occurrences = _count_occurrences(normalized_current, normalized_search)
         if occurrences == 0:
-            return f"Error: failed to edit; unable to locate target snippet in {os.path.relpath(resolved_path, workspace_root)}."
+            return f"Error: failed to edit; unable to locate target snippet in {resolved_path}."
 
         if occurrences != expected:
-            return f"Error: expected {expected} occurrence(s) but found {occurrences} in {os.path.relpath(resolved_path, workspace_root)}."
+            return f"Error: expected {expected} occurrence(s) but found {occurrences} in {resolved_path}."
 
         if normalized_search == normalized_replace:
             return "Error: no changes to apply; old_string and new_string are identical."
@@ -132,7 +130,7 @@ class EditFileTool(BaseTool):
             new_content = new_content.replace("\n", "\r\n")
 
         await asyncio.to_thread(Path(resolved_path).write_text, new_content, encoding="utf-8")
-        return f"OK: edited {os.path.relpath(resolved_path, workspace_root)} ({occurrences} replacement(s))"
+        return f"OK: edited {resolved_path} ({occurrences} replacement(s))"
 
     def _parse_input(self, input: Any) -> dict | None:
         """解析输入"""

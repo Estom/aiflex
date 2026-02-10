@@ -8,9 +8,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..core.interfaces import AgentContext, ToolDefinition
+from ..core.interfaces import AgentContext
 from ..tools.base_tool import BaseTool
-from ...utils.path_utils import gather_allowed_roots, resolve_within_allowed_roots
 
 
 DEFAULT_LIMIT = 200
@@ -55,16 +54,15 @@ class ReadFileTool(BaseTool):
             return 'Error: `file_path` is required.'
 
         workspace_root = self._get_workspace_root(context)
-        allowed_roots = gather_allowed_roots(workspace_root, context)
-        resolved_path = resolve_within_allowed_roots(allowed_roots, parsed["file_path"])
+        resolved_path = self._resolve_path(workspace_root, parsed["file_path"])
         if not resolved_path:
-            return f"Error: file_path must be within allowed roots. Received: {parsed['file_path']}"
+            return f"Error: invalid file_path: {parsed['file_path']}"
 
         if not os.path.isfile(resolved_path):
-            return f"Error: path is not a file: {os.path.relpath(resolved_path, workspace_root)}"
+            return f"Error: path is not a file: {resolved_path}"
 
-        offset = max(0, int(parsed.get("offset", 0)))
-        limit = min(MAX_LIMIT, max(1, int(parsed.get("limit", DEFAULT_LIMIT))))
+        offset = max(0, int(parsed.get("offset") or 0))
+        limit = min(MAX_LIMIT, max(1, int(parsed.get("limit") or DEFAULT_LIMIT)))
 
         try:
             content = await asyncio.to_thread(Path(resolved_path).read_text, encoding="utf-8")

@@ -59,7 +59,7 @@ class ShellTool(BaseTool):
         workspace_root = self._get_workspace_root(context)
         working_dir = params.get("dir_path")
         if working_dir:
-            resolved = self._resolve_within_workspace(workspace_root, working_dir)
+            resolved = self._resolve_path(workspace_root, working_dir)
             if not resolved:
                 return f"Error: dir_path must be inside the workspace. Received: {working_dir}"
             working_dir = resolved
@@ -69,7 +69,11 @@ class ShellTool(BaseTool):
         if not os.path.isdir(working_dir):
             return f"Error: dir_path is not a directory: {working_dir}"
 
-        timeout_ms = max(5000, int(params.get("timeout_seconds", 60) * 1000))
+        timeout_seconds = params.get("timeout_seconds")
+        if timeout_seconds is not None:
+            timeout_ms = max(5000, int(timeout_seconds) * 1000)
+        else:
+            timeout_ms = 60000  # 默认 60 秒
 
         try:
             result = await self._run_shell_command(
@@ -100,19 +104,12 @@ class ShellTool(BaseTool):
 
         return None
 
-    def _resolve_within_workspace(self, workspace_root: str, user_path: str) -> str | None:
-        """解析路径"""
-        resolved = os.path.abspath(user_path) if os.path.isabs(user_path) else os.path.abspath(os.path.join(workspace_root, user_path))
-        rel = os.path.relpath(resolved, workspace_root)
-        if rel == "." or (not rel.startswith("..") and not os.path.isabs(rel)):
-            return resolved
-        return None
-
     async def _run_shell_command(self, command: str, cwd: str, timeout_ms: int) -> dict:
         """运行 Shell 命令"""
         proc = await asyncio.create_subprocess_exec(
             "bash",
-            ["-lc", command],
+            "-lc",
+            command,
             cwd=cwd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

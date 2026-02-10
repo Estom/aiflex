@@ -5,12 +5,11 @@ Search Text Tool - 文本搜索工具
 """
 
 import asyncio
-import os
 import re
 from pathlib import Path
 from typing import Any
 
-from ..core.interfaces import AgentContext, ToolDefinition
+from ..core.interfaces import AgentContext
 from ..tools.base_tool import BaseTool
 
 
@@ -59,12 +58,12 @@ class SearchTextTool(BaseTool):
             return 'Error: `pattern` is required.'
 
         workspace_root = self._get_workspace_root(context)
-        search_dir = self._resolve_within_workspace(workspace_root, parsed.get("dir_path", "."))
+        search_dir = self._resolve_path(workspace_root, parsed.get("dir_path") or ".")
         if not search_dir:
             return f"Error: dir_path must be within the workspace. Received: {parsed.get('dir_path')}"
 
-        case_sensitive = parsed.get("case_sensitive", False)
-        max_matches = max(1, min(1000, int(parsed.get("max_matches", DEFAULT_MAX_MATCHES))))
+        case_sensitive = parsed.get("case_sensitive") or False
+        max_matches = max(1, min(1000, int(parsed.get("max_matches") or DEFAULT_MAX_MATCHES)))
 
         try:
             flags = 0 if case_sensitive else re.IGNORECASE
@@ -98,14 +97,6 @@ class SearchTextTool(BaseTool):
                 "max_matches": input.get("max_matches") if isinstance(input.get("max_matches"), (int, float)) else None,
             }
 
-        return None
-
-    def _resolve_within_workspace(self, workspace_root: str, user_path: str) -> str | None:
-        """解析路径"""
-        resolved = os.path.abspath(user_path) if os.path.isabs(user_path) else os.path.abspath(os.path.join(workspace_root, user_path))
-        rel = os.path.relpath(resolved, workspace_root)
-        if rel == "." or (not rel.startswith("..") and not os.path.isabs(rel)):
-            return resolved
         return None
 
     async def _search_in_directory(

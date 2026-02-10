@@ -111,6 +111,7 @@ class AgentContext:
     session_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     history_messages: list[ChatMessage] = field(default_factory=list)
+    workspace_root: str | None = None
 
 
 @dataclass

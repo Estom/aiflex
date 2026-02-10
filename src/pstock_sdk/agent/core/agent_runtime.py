@@ -235,7 +235,7 @@ class AgentRuntime:
                     "会话终止",
                 )
                 if emit:
-                    emit(terminated_step)
+                    await emit(terminated_step)
                 self.reset()
                 return AgentRunResult(output="[会话已终止]")
 
@@ -251,7 +251,7 @@ class AgentRuntime:
                 reply.get("raw"),
             )
             if emit:
-                emit(agent_step)
+                await emit(agent_step)
 
             # 记录模型回复历史消息
             await self.context_manager.add_message(session_id, {
@@ -266,7 +266,7 @@ class AgentRuntime:
                     # 发送动作步骤
                     action_step = self._build_tool_step(call, content)
                     if emit:
-                        emit(action_step)
+                        await emit(action_step)
 
                     # 执行工具
                     observation = await self._execute_tool(call, context)
@@ -280,7 +280,7 @@ class AgentRuntime:
                         {"call": call["name"]},
                     )
                     if emit:
-                        emit(observation_step)
+                        await emit(observation_step)
                     # 记录工具调用历史消息
                     await self.context_manager.add_message(session_id,{
                         "role": "tool",
@@ -301,7 +301,7 @@ class AgentRuntime:
                     reply.get("raw"),
                 )
                 if emit:
-                    emit(final_step)
+                    await emit(final_step)
                 return AgentRunResult(output=content.strip())
 
             # 空响应
@@ -312,14 +312,14 @@ class AgentRuntime:
                 reply.get("raw"),
             )
             if emit:
-                emit(empty_step)
+                await emit(empty_step)
             iteration += 1
 
         # 达到最大步数
         fallback = "Error: Maximum steps reached without a final answer."
         final_step = build_agent_step("error", fallback, "回答错误")
         if emit:
-            emit(final_step)
+            await emit(final_step)
         return AgentRunResult(output=fallback)
 
     def _build_tool_step(self, call: ToolCall, thought: str | None) -> AgentStep:

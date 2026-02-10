@@ -124,13 +124,16 @@ class Agent:
         self.name = options.name
         self.description = options.description
 
+        # 如果未设置 workspace_root，使用当前工作目录
+        workspace_root = options.workspace_root or os.getcwd()
+
         # 配置
         self.config = AgentRuntimeConfig(
             name=options.name,
             description=options.description,
             max_steps=options.max_steps,
             instructions=options.instructions,
-            workspace_root=options.workspace_root,
+            workspace_root=workspace_root,
         )
 
         # LLM
@@ -165,11 +168,11 @@ class Agent:
             agent_name=self.config.name,
             agent_description=self.config.description,
             agent_instructions=self.config.instructions,
-            workspace_root=options.workspace_root,
+            workspace_root=workspace_root,
         )
 
         # Codespace 标记
-        self.workspace_root: str = options.workspace_root
+        self.workspace_root: str = workspace_root
 
         # 技能源
         self.skill_sources: list[str] = options.skill_sources

@@ -31,6 +31,32 @@ from .registry import AgentRegistry
 from .routes import agents, chat
 
 
+def format_step_output(step: Any) -> str:
+    """
+    Format agent step output for display
+
+    Args:
+        step: AgentStep containing type, content, and display_name
+
+    Returns:
+        Formatted string for the step
+    """
+    step_type = step.type
+    display_name = step.display_name or step_type
+
+    if step_type == "thought":
+        return f"\n🤔 思考: {step.content}"
+    elif step_type == "action":
+        return f"\n🔧 行动: {display_name}"
+    elif step_type == "observation":
+        content_preview = step.content[:100] + "..." if len(step.content) > 100 else step.content
+        return f"\n👁️  观察: {content_preview}"
+    elif step_type == "answer":
+        return f"\n💡 回答: {step.content}"
+    else:
+        return f"\n[{step_type}] {display_name}: {step.content[:50]}..."
+
+
 def create_app() -> FastAPI:
     """
     Create and configure the FastAPI application
@@ -145,6 +171,12 @@ Examples:
             help="Agent name to use (for interactive/prompt modes)",
         )
         parser.add_argument(
+            "-s",
+            "--stream",
+            action="store_true",
+            help="Use streaming output with intermediate thinking process (for interactive/prompt modes)",
+        )
+        parser.add_argument(
             "--host",
             type=str,
             default="0.0.0.0",
@@ -190,7 +222,34 @@ Examples:
                 return self.registry.get(agent_info.id)
         return None
 
-    async def _run_interactive(self, agent_name: str | None = None) -> None:
+    async def _run_with_stream(self, agent, task: str, session_id: str | None = None) -> None:
+        """
+        Run agent task with streaming output
+
+        Args:
+            agent: The agent instance
+            task: User task/prompt
+            session_id: Session ID for context management
+        """
+        steps_collected = []
+
+        async def emit_step(step: Any) -> None:
+            """Callback for streaming step output"""
+            steps_collected.append(step)
+            output = format_step_output(step)
+            print(output, end="", flush=True)
+
+        result = await agent.run_stream(task, session_id, emit_step)
+
+        # Output final result
+        print(f"\n\n{'='*60}")
+        print(f"最终答案:")
+        print(f"{'='*60}")
+        print(result.output)
+        print(f"{'='*60}")
+        print(f"总步骤数: {len(steps_collected)}")
+
+    async def _run_interactive(self, agent_name: str | None = None, stream: bool = False) -> None:
         """Run interactive mode"""
         # Select agent
         agent = None
@@ -224,6 +283,8 @@ Examples:
 
         print(f"\nStarting interactive session with: {agent.name}")
         print("Type 'quit' or 'exit' to end the session.")
+        if stream:
+            print("Streaming mode enabled - intermediate steps will be shown.")
         print("-" * 60)
 
         # Initialize context with empty history
@@ -239,12 +300,16 @@ Examples:
                     break
 
                 print(f"\n{agent.name}: ", end="", flush=True)
-                result = await agent.run(user_input, session_id)
-                print(result.output)
 
-                # Print steps if any
-                if result.steps:
-                    print(f"\n[Executed {len(result.steps)} step(s)]")
+                if stream:
+                    await self._run_with_stream(agent, user_input, session_id)
+                else:
+                    result = await agent.run(user_input, session_id)
+                    print(result.output)
+
+                    # Print steps if any
+                    if result.steps:
+                        print(f"\n[Executed {len(result.steps)} step(s)]")
 
             except (EOFError, KeyboardInterrupt):
                 print("\n\nExiting session.")
@@ -252,7 +317,7 @@ Examples:
             except Exception as e:
                 print(f"\nError: {e}")
 
-    async def _run_prompt(self, prompt: str, agent_name: str | None = None) -> None:
+    async def _run_prompt(self, prompt: str, agent_name: str | None = None, stream: bool = False) -> None:
         """Run one-shot prompt mode"""
         agent = None
         if agent_name:
@@ -273,12 +338,15 @@ Examples:
                 print(f"Using default agent: {agent_info.name}", file=sys.stderr)
                 print(f"  (Use --agent {agent_info.name} to specify)", file=sys.stderr)
 
-        result = await agent.run(prompt, AgentContext())
-        print(result.output)
+        if stream:
+            await self._run_with_stream(agent, prompt, None)
+        else:
+            result = await agent.run(prompt, None)
+            print(result.output)
 
-        # Print steps if any
-        if result.steps:
-            print(f"\n[Executed {len(result.steps)} step(s)]", file=sys.stderr)
+            # Print steps if any
+            if result.steps:
+                print(f"\n[Executed {len(result.steps)} step(s)]", file=sys.stderr)
 
     def _run_web(self, host: str, port: int) -> None:
         """Run web server mode"""
@@ -315,9 +383,9 @@ Examples:
         if parsed_args.web:
             self._run_web(parsed_args.host, parsed_args.port)
         elif parsed_args.interactive:
-            asyncio.run(self._run_interactive(parsed_args.agent))
+            asyncio.run(self._run_interactive(parsed_args.agent, parsed_args.stream))
         elif parsed_args.prompt:
-            asyncio.run(self._run_prompt(parsed_args.prompt, parsed_args.agent))
+            asyncio.run(self._run_prompt(parsed_args.prompt, parsed_args.agent, parsed_args.stream))
         else:
             # Default to web mode if no mode specified
             print("No mode specified. Starting web server by default.")

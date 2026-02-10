@@ -9,9 +9,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..core.interfaces import AgentContext, ToolDefinition
+from ..core.interfaces import AgentContext
 from ..tools.base_tool import BaseTool
-from ...utils.path_utils import gather_allowed_roots, resolve_within_allowed_roots
 
 
 class FindFilesTool(BaseTool):
@@ -50,19 +49,18 @@ class FindFilesTool(BaseTool):
             return 'Error: `pattern` is required and must be a non-empty string.'
 
         workspace_root = self._get_workspace_root(context)
-        allowed_roots = gather_allowed_roots(workspace_root, context)
 
-        dir_path = params.get("dir_path", ".")
-        search_dir = resolve_within_allowed_roots(allowed_roots, dir_path)
+        dir_path = params.get("dir_path") or "."
+        search_dir = self._resolve_path(workspace_root, dir_path)
         if not search_dir:
-            return f"Error: dir_path must be within allowed roots. Received: {dir_path}"
+            return f"Error: invalid dir_path: {dir_path}"
 
         if not os.path.isdir(search_dir):
             return f"Error: dir_path is not a directory: {search_dir}"
 
         # 执行文件查找
         pattern = params["pattern"]
-        case_sensitive = params.get("case_sensitive", False)
+        case_sensitive = params.get("case_sensitive") or False
 
         matches = []
         search_path = Path(search_dir)

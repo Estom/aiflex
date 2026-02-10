@@ -72,7 +72,7 @@ class BaseTool:
         """
         获取有效的工作区根目录
 
-        默认为当前工作目录，但可以通过 context.metadata.codespaceRoot 覆盖
+        优先使用 context.workspace_root，其次使用 context.metadata.codespaceRoot，最后使用当前工作目录
 
         Args:
             context: Agent 上下文
@@ -80,7 +80,40 @@ class BaseTool:
         Returns:
             str: 工作区根目录路径
         """
-        candidate = (context.metadata.get("codespaceRoot") if context and context.metadata else None)
-        if isinstance(candidate, str) and candidate.strip():
-            return candidate
+        # 优先使用 context.workspace_root
+        if context and context.workspace_root:
+            return context.workspace_root
+        # 其次使用 metadata.codespaceRoot（向后兼容）
+        if context and context.metadata:
+            candidate = context.metadata.get("codespaceRoot")
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate
+        # 最后使用当前工作目录
         return os.getcwd()
+
+    def _resolve_path(self, workspace_root: str, user_path: str) -> str | None:
+        """
+        解析用户路径
+
+        - 如果是绝对路径，直接使用
+        - 如果是相对路径，相对于 workspace_root 解析
+
+        Args:
+            workspace_root: 工作区根目录
+            user_path: 用户提供的路径
+
+        Returns:
+            str | None: 解析后的绝对路径，无效路径返回 None
+        """
+        cleaned = (user_path or "").strip()
+        if not cleaned:
+            return None
+
+        workspace_abs = os.path.abspath(workspace_root)
+
+        # 如果是绝对路径，直接使用
+        if os.path.isabs(cleaned):
+            return os.path.abspath(cleaned)
+
+        # 相对路径，相对于 workspace_root 解析
+        return os.path.abspath(os.path.join(workspace_abs, cleaned))

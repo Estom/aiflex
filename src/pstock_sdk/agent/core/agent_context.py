@@ -141,6 +141,7 @@ class AgentContextManager:
                 session_id=session_id,
                 metadata=metadata or {},
                 history_messages=[],
+                workspace_root=self.workspace_root,
             )
 
         return self._sessions[session_id]
@@ -268,16 +269,16 @@ class AgentContextManager:
         self._after_update(session_id)
 
     async def _after_update(self, session_id: str) -> None:
-        messages = await self.get_messages(session_id)
         # 如果启用了压缩功能，判断是否需要压缩---只在用户输入后进行压缩
-        if self._should_compress(session_id) and self._get_history_messages(session_id)[-1].get['role'] == "user":
+        history_messages = self._get_history_messages(session_id)
+        if self._should_compress(session_id) and history_messages and history_messages[-1].get("role") == "user":
             await self._compress_context(session_id)
         else:
             # 限制历史轮次
             self._trim_history(session_id)
 
         # 如果启用了记忆功能，并且是LLM更新的消息---只在模型问答后进行记忆总结
-        if self.memory_enabled and self.llm and self.memory_slots and self._get_history_messages(session_id)[-1].get("role") == "assistant":
+        if self.memory_enabled and self.llm and self.memory_slots and history_messages and history_messages[-1].get("role") == "assistant":
             await self._generate_and_update_memory(session_id)
 
     def _get_memory_message(self, session_id: str) -> ChatMessage:
