@@ -25,7 +25,7 @@
 
 ### 1.2.0 创建基础智能体
 
-- [ ] 参考这篇文章，优化一下系统提示词。https://mp.weixin.qq.com/s/BkoYYAhvOKZuBc8EcOWeWg。主要是优化几个核心工具的提示词：Plan工具、Skill工具，补充环境变量。重新设计系统提示词。
+- [ ] 参考这篇文章，优化一下系统提示词。https://mp.weixin.qq.com/s/BkoYYAhvOKZuBc8EcOWeWg。主要是优化几个核心工具的提示词：Plan工具、Skill工具，补充环境变量。重新设计系统提示词。https://mp.weixin.qq.com/s/XXujLc6elzzXb0ad-AzJ5w
 - [x] 创建市场分析智能体。输入热点新闻，评估新闻的重要程度，评估对股市的影响水平，分析未来的发展趋势。
 - [x] 创建股票交易智能体，查询单个股票的数据面、消息面、技术面、基本面的信息，生成股票的综合分析报告。根据股票综合分析报告，进行买入卖出的操作。
 

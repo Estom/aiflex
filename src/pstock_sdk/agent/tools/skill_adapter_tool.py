@@ -20,8 +20,8 @@ class SkillAdapterTool(BaseTool):
 
     def __init__(self, skill_registry: SkillRegistry):
         self._skill_registry = skill_registry
-        self._name = "skill"
-        self._display_name = "Skill"
+        self._name = "get_skill"
+        self._display_name = "Get Skill"
         self._description = self._build_description()
         self._parameters = {
             "type": "object",

@@ -99,7 +99,7 @@ class TodoTool(BaseTool):
     }
 
     def __init__(self) -> None:
-        self._name = "write_todos_list"
+        self._name = "write_todos"
         self._display_name = "Todo List"
         self._description = self.DESCRIPTION
 
