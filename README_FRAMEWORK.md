@@ -1,4 +1,4 @@
-# 🎉 PStock 智能体框架 - 运行成功！
+# 🎉 PStock Framework智能体框架 - 运行成功！
 
 ## ✅ 当前状态
 
@@ -7,7 +7,6 @@
 ### 📦 已完成的组件
 
 ✅ **pstock_framework** - 声明式智能体框架
-✅ **financial_analyst** - 金融分析师智能体
 ✅ **工具系统** - 自动发现和加载
 ✅ **技能系统** - Claude Skills 支持
 ✅ **子智能体** - 递归加载和协作
