@@ -16,6 +16,7 @@ from typing import Any
 from loguru import logger
 
 from pstock_sdk.agent.tools.mcp_adapter_tool import McpAdapterTool
+from pstock_sdk.agent.tools.skill_adapter_tool import SkillAdapterTool
 
 from ...integration.ragflow_client import RagFlowClient
 from ..mcp.mcp_client import McpClient
@@ -180,10 +181,10 @@ class Agent:
         self._initializing: asyncio.Task | None = None
 
         # 注册内置工具和工具
-        self._register_builtin_tools()
-        self._register_tools(options.tools)
         self._register_skills(options.skills)
         self._register_skill_source(options.skill_sources)
+        self._register_builtin_tools()
+        self._register_tools(options.tools)
 
         # 创建 Runtime
         self.runtime = AgentRuntime(
@@ -487,6 +488,14 @@ class Agent:
 
             def _parse_simple_frontmatter(yaml_content: str) -> dict:
                 """简单解析 frontmatter，按行读取，按第一个冒号分割"""
+                def _strip_quotes(s: str) -> str:
+                    """去除字符串两端的空白和引号"""
+                    s = s.strip()
+                    if len(s) >= 2:
+                        if (s[0] == '"' and s[-1] == '"') or (s[0] == "'" and s[-1] == "'"):
+                            s = s[1:-1]
+                    return s
+
                 result = {}
                 for line in yaml_content.split("\n"):
                     line = line.strip()
@@ -494,7 +503,7 @@ class Agent:
                         continue
                     if ":" in line:
                         key, value = line.split(":", 1)
-                        result[key.strip()] = value.strip()
+                        result[_strip_quotes(key)] = _strip_quotes(value)
                 return result
 
             frontmatter_match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", content, re.DOTALL)
@@ -589,6 +598,9 @@ class Agent:
         # 如果启用 MCP 非懒加载，注册 MCP 工具
         if not self.mcp_lazy_load and self.mcp_servers:
             asyncio.run(self._register_mcp_tools())
+        
+        if self.skill_registry:
+            self._register_tool(SkillAdapterTool(self.skill_registry))
 
     async def _ensure_initialized(self) -> None:
         """确保已初始化"""

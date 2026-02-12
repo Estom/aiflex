@@ -282,7 +282,7 @@ def create_full_featured_agent() -> Agent:
             SearchTextTool()
         ])
 
-        .with_workspace_root("/home/estom/work/pstock/skill/workspace")
+        .with_workspace_root("/home/estom/work/pstock/examples/workspace")
 
 
         # ==================== 子 Agent 配置 ====================
