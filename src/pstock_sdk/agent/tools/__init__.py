@@ -2,6 +2,7 @@
 from .base_tool import BaseTool
 from .tool_registry import ToolRegistry
 from .agent_adapter_tool import AgentAdapterTool, AgentDescriptor
+from .skill_adapter_tool import SkillAdapterTool
 from .find_files_tool import FindFilesTool
 from .list_directory_tool import ListDirectoryTool
 from .read_file_tool import ReadFileTool
@@ -24,6 +25,8 @@ __all__ = [
     "ToolRegistry",
     "AgentAdapterTool",
     "AgentDescriptor",
+    "SkillAdapterTool",
+    "SkillDescriptor",
     "FindFilesTool",
     "ListDirectoryTool",
     "ReadFileTool",

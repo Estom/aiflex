@@ -148,9 +148,7 @@ class AgentLoader:
         if not prompt_parts:
             prompt_file = find_prompt_file(config.get_config_dir())
             if prompt_file:
-                file_content = await asyncio.to_thread(
-                    prompt_file.read_text, encoding="utf-8"
-                )
+                file_content = await asyncio.to_thread(prompt_file.read_text, encoding="utf-8")
                 prompt_parts.append(file_content)
             else:
                 # 使用默认描述
@@ -164,9 +162,7 @@ class AgentLoader:
 
         return prompt_text
 
-    async def _prepare_llm(
-        self, config: AgentConfig, parent_llm: "LLM | None"
-    ) -> "LLM":
+    async def _prepare_llm(self, config: AgentConfig, parent_llm: "LLM | None") -> "LLM":
         """
         准备 LLM
 
@@ -247,9 +243,7 @@ class AgentLoader:
 
         skill_files = find_skill_files(config.get_config_dir())
         for skill_file in skill_files:
-            skill = await self.skill_loader.load_skill_file(
-                skill_file, skill_file.parent.name
-            )
+            skill = await self.skill_loader.load_skill_file(skill_file, skill_file.parent.name)
             if skill:
                 all_skills.append(skill)
 
@@ -261,9 +255,7 @@ class AgentLoader:
         logger.info(f"Loaded {len(all_skills)} skills for agent {config.name}")
         return all_skills
 
-    async def _load_subagents(
-        self, config: AgentConfig, parent_name: str
-    ) -> list["Agent"]:
+    async def _load_subagents(self, config: AgentConfig, parent_name: str) -> list["Agent"]:
         """
         加载子 Agent
 
@@ -324,4 +316,14 @@ class AgentLoader:
         if config.runtime.knowledge_base is not None:
             builder = builder.with_knowledge_base(config.runtime.knowledge_base)
 
-        return builder.build()
+        agent = builder.build()
+
+        # 如果有 Skill，注册 SkillAdapterTool
+        if skills:
+            from pstock_sdk.agent.tools.skill_adapter_tool import SkillAdapterTool
+
+            skill_adapter = SkillAdapterTool(agent.skill_registry)
+            agent._register_tool(skill_adapter)
+            logger.info(f"Registered SkillAdapterTool for agent {config.name}")
+
+        return agent

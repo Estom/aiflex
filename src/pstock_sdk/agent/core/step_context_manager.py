@@ -179,21 +179,12 @@ class StepContextManager:
 
     def _build_system_prompt(self) -> str:
         """构建系统提示词"""
-        # 技能列表
-        skills_list = ""
-        if self.skill_registry:
-            skills_list = "\n".join(
-                f"- {skill['name']} in path {skill.get('path', '')}: {skill['description']}"
-                for skill in self.skill_registry.list()
-            )
-
         parts = [
             f"You are an agent named {self.agent_name}.",
             self.agent_description,
             self.agent_instructions
             or "Use ReAct style with OpenAI function calling. Call tools when helpful and provide a concise final answer when done.",
-            "You can use skills as follows and access them via read file tool:",
-            f"Available skills:\n{skills_list}" if skills_list else "No skills are available.",
+            "You can use the 'skill' tool to access specialized capabilities when needed.",
         ]
 
         if self.workspace_root:
