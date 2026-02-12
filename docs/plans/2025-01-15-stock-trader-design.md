@@ -1,19 +1,21 @@
 # StockTrader 股票交易员智能体设计文档
 
-**版本**: 1.0.0
+**版本**: 2.0.0
 **创建日期**: 2025-01-15
+**更新日期**: 2026-02-12
 **作者**: PStock Team
-**状态**: 设计阶段
+**状态**: 设计阶段（编程式构建）
 
 ---
 
 ## 目录
 
 1. [概述与架构设计](#1-概述与架构设计)
-2. [子智能体详细设计](#2-子智能体详细设计)
-3. [数据流与接口设计](#3-数据流与接口设计)
-4. [实现计划与目录结构](#4-实现计划与目录结构)
-5. [配置示例与使用方式](#5-配置示例与使用方式)
+2. [AgentBuilder 构建模式](#2-agentbuilder-构建模式)
+3. [子智能体详细设计](#3-子智能体详细设计)
+4. [数据流与接口设计](#4-数据流与接口设计)
+5. [实现计划与目录结构](#5-实现计划与目录结构)
+6. [使用方式](#6-使用方式)
 
 ---
 
@@ -73,6 +75,7 @@
 
 | 决策点 | 选择方案 | 理由 |
 |-------|---------|------|
+| 配置方式 | **编程式构建 (agent.py)** | 完整类型提示、动态配置、易于调试 |
 | 子智能体划分 | 按处理阶段拆分 | 职责清晰，数据流向明确，便于并行优化 |
 | 分析能力实现 | Skills + Tools | Skills提供领域知识，Tools提供计算能力 |
 | 策略生成 | 独立子智能体 | 与分析解耦，便于接入不同券商API |
@@ -81,12 +84,136 @@
 
 ---
 
-## 2. 子智能体详细设计
+## 2. AgentBuilder 构建模式
 
-### 2.1 DataFetcher（数据获取子智能体）
+### 2.1 核心构建 API
+
+每个智能体通过 `AgentBuilder` 编程式构建，提供流畅的链式 API：
+
+```python
+from pstock_sdk import AgentBuilder, OpenAILLM
+
+# 初始化 LLM
+llm = OpenAILLM(api_key="sk-xxx", options={"model": "gpt-4o"})
+
+# 构建智能体
+agent = (AgentBuilder()
+    .with_name("agent_name")
+    .with_description("智能体描述")
+    .with_instructions("系统提示词")
+    .with_max_steps(5)
+    .with_tools([tool1, tool2])
+    .with_skill_sources(["skills/"])
+    .with_children([child_agent])
+    .build())
+```
+
+### 2.2 工厂函数模式
+
+每个子智能体提供独立的 `create()` 工厂函数：
+
+```python
+# subagents/data_fetcher/agent.py
+
+def create(llm: LLM) -> Agent:
+    """创建 DataFetcher 子智能体"""
+    return (AgentBuilder()
+        .with_name("data_fetcher")
+        .with_description("专业金融数据获取智能体")
+        .with_instructions(_load_instructions())
+        .with_max_steps(3)
+        .with_tools(_create_tools())
+        .with_skill_sources(["skills/"])
+        .build())
+```
+
+### 2.3 提示词加载
+
+支持从文件加载或内联定义：
+
+```python
+def _load_instructions() -> str:
+    """加载系统提示词"""
+    prompt_path = Path(__file__).parent / "prompt.md"
+    if prompt_path.exists():
+        return prompt_path.read_text(encoding="utf-8")
+
+    # 默认提示词（内联）
+    return """你是数据获取专家..."""
+```
+
+---
+
+## 3. 子智能体详细设计
+
+### 3.1 DataFetcher（数据获取子智能体）
 
 #### 职责
 负责从各类数据源获取原始数据，为后续分析提供数据基础。
+
+#### 完整实现
+
+```python
+# subagents/data_fetcher/agent.py
+
+from pathlib import Path
+from pstock_sdk import Agent, AgentBuilder, LLM
+from .tools import (
+    stock_price_tool,
+    financial_data_tool,
+    sentiment_tool,
+    macro_data_tool,
+)
+
+
+def create(llm: LLM) -> Agent:
+    """创建 DataFetcher 子智能体"""
+    return (AgentBuilder()
+        .with_name("data_fetcher")
+        .with_description("专业金融数据获取智能体，支持股价、财务、舆情、宏观数据")
+        .with_instructions(_load_instructions())
+        .with_max_steps(3)
+        .with_tools([
+            stock_price_tool,
+            financial_data_tool,
+            sentiment_tool,
+            macro_data_tool,
+        ])
+        .with_skill_sources([
+            str(Path(__file__).parent / "skills")
+        ])
+        .build())
+
+
+def _load_instructions() -> str:
+    """加载系统提示词"""
+    prompt_path = Path(__file__).parent / "prompt.md"
+    if prompt_path.exists():
+        return prompt_path.read_text(encoding="utf-8")
+
+    return """你是数据获取专家，负责准确高效地获取各类金融数据。
+
+## 工作流程
+
+1. 根据用户请求确定需要的数据类型
+2. 调用相应的工具获取数据
+3. 进行基础质量校验
+4. 返回结构化的数据结果
+
+## 可用工具
+
+- stock_price: 获取实时/历史股价数据 (OHLCV)
+- financial_data: 获取财务报表数据 (PE/PB/ROE等)
+- sentiment: 获取市场情绪数据 (资金流向/舆情)
+- macro_data: 获取宏观经济指标 (利率/通胀等)
+
+## 重要原则
+
+- 数据准确性优先，必要时进行重试
+- 缺失数据要明确标注，不要虚构
+- 保持数据格式一致性，便于下游处理
+"""
+```
 
 #### Tools 配置
 
@@ -100,35 +227,40 @@
 #### Skills 配置
 - `data_quality`: 数据校验、缺失值处理、异常值检测
 
-#### agent.json 配置
-```json
-{
-  "name": "data_fetcher",
-  "version": "1.0.0",
-  "description": "专业金融数据获取智能体，支持股价、财务、舆情、宏观数据",
-  "prompt": {
-    "system": "你是数据获取专家，负责准确高效地获取各类金融数据。获取后进行基础校验，确保数据质量。"
-  },
-  "tools": {
-    "auto_discover": true,
-    "enabled": [],
-    "disabled": []
-  },
-  "skills": {
-    "sources": ["skills/"],
-    "inline": []
-  },
-  "runtime": {
-    "max_steps": 3,
-    "experience_enabled": false
-  }
-}
-```
+---
 
-### 2.2 Analyzer（分析处理子智能体）
+### 3.2 Analyzer（分析处理子智能体）
 
 #### 职责
 基于获取的数据进行多维度分析，是核心分析引擎。
+
+#### 完整实现
+
+```python
+# subagents/analyzer/agent.py
+
+from pathlib import Path
+from pstock_sdk import Agent, AgentBuilder, LLM
+from .tools import indicators_tool
+
+
+def create(llm: LLM) -> Agent:
+    """创建 Analyzer 子智能体"""
+    return (AgentBuilder()
+        .with_name("analyzer")
+        .with_description("多维度股票分析引擎，覆盖技术面、基本面、情绪面、宏观面")
+        .with_instructions(_load_instructions())
+        .with_max_steps(8)
+        .with_tools([indicators_tool])
+        .with_skill_sources([
+            str(Path(__file__).parent / "skills" / "technical"),
+            str(Path(__file__).parent / "skills" / "fundamental"),
+            str(Path(__file__).parent / "skills" / "sentiment"),
+            str(Path(__file__).parent / "skills" / "macro"),
+        ])
+        .with_memory_enabled(True)
+        .build())
+```
 
 #### Skills 配置
 
@@ -147,32 +279,9 @@
 2. 依次激活四个 Skills 进行分析
 3. 生成结构化分析结论（JSON格式）
 
-#### agent.json 配置
-```json
-{
-  "name": "analyzer",
-  "version": "1.0.0",
-  "description": "多维度股票分析引擎，覆盖技术面、基本面、情绪面、宏观面",
-  "prompt": {
-    "system": "你是专业股票分析师，基于获取的数据进行全面深入的分析。每个维度都要给出明确的结论和依据。"
-  },
-  "skills": {
-    "sources": ["skills/"],
-    "inline": []
-  },
-  "tools": {
-    "auto_discover": true,
-    "enabled": ["indicators"],
-    "disabled": []
-  },
-  "runtime": {
-    "max_steps": 8,
-    "experience_enabled": true
-  }
-}
-```
+---
 
-### 2.3 StrategyGenerator（策略生成子智能体）
+### 3.3 StrategyGenerator（策略生成子智能体）
 
 #### 职责
 基于分析结果和当前持仓数据，生成具体交易策略，包含风控检查。
@@ -182,6 +291,42 @@
 2. **策略生成**：结合分析结论生成具体交易信号（买入/加仓/减仓/清仓）
 3. **风控检查**：单股上限、总体仓位控制（软性提醒）
 4. **组合影响评估**：计算交易对整体组合的影响
+
+#### 完整实现
+
+```python
+# subagents/strategy_generator/agent.py
+
+from pathlib import Path
+from pstock_sdk import Agent, AgentBuilder, LLM
+from .tools import (
+    get_positions_tool,
+    risk_check_tool,
+    calc_signals_tool,
+)
+
+
+def create(llm: LLM) -> Agent:
+    """创建 StrategyGenerator 子智能体"""
+    return (AgentBuilder()
+        .with_name("strategy_generator")
+        .with_description("基于分析结果和持仓数据生成具体交易策略，包含风控检查")
+        .with_instructions(_load_instructions())
+        .with_max_steps(6)
+        .with_tools([
+            get_positions_tool,
+            risk_check_tool,
+            calc_signals_tool,
+        ])
+        .with_skill_sources([
+            str(Path(__file__).parent / "skills" / "position_sizing"),
+            str(Path(__file__).parent / "skills" / "entry_strategy"),
+            str(Path(__file__).parent / "skills" / "exit_strategy"),
+            str(Path(__file__).parent / "skills" / "portfolio_mgmt"),
+        ])
+        .with_memory_enabled(True)
+        .build())
+```
 
 #### Tools 配置
 
@@ -200,107 +345,39 @@
 | `exit_strategy` | 出场策略：止损止盈、移动止损、时间止损 |
 | `portfolio_mgmt` | 组合管理：相关性分析、集中度控制 |
 
-#### 输入数据格式
+---
 
-**来自 Analyzer**：
-```json
-{
-  "symbol": "AAPL",
-  "analyses": {
-    "technical": { "trend": "bullish", "conclusion": "上升趋势延续" },
-    "fundamental": { "conclusion": "基本面稳健" },
-    "sentiment": { "conclusion": "市场情绪积极" },
-    "macro": { "conclusion": "宏观环境利好" }
-  }
-}
-```
-
-**持仓数据（券商API）**：
-```json
-{
-  "account_id": "xxx",
-  "positions": [
-    {
-      "symbol": "AAPL",
-      "quantity": 100,
-      "avg_cost": 165.00,
-      "current_price": 178.50,
-      "market_value": 17850.00,
-      "pnl": 1350.00,
-      "pnl_percent": 8.2
-    }
-  ],
-  "cash": 50000.00,
-  "total_value": 150000.00
-}
-```
-
-#### 输出数据格式
-
-**传递给 Reporter**：
-```json
-{
-  "symbol": "AAPL",
-  "strategy": {
-    "action": "BUY",
-    "action_cn": "加仓",
-    "quantity": 50,
-    "target_price": 175.00,
-    "stop_loss": 168.00,
-    "take_profit": 195.00,
-    "reasoning": "技术面上升趋势延续，基本面稳健，当前仓位8.2%低于目标12%，建议逢低加仓",
-    "priority": "MEDIUM"
-  },
-  "risk_alerts": [
-    "单股权重将达14.2%，略超10%上限，请注意控制",
-    "科技股权重已达45%，建议关注行业集中度"
-  ],
-  "portfolio_impact": {
-    "current_weight": 8.2,
-    "new_weight": 14.2,
-    "cash_after": 32750.00,
-    "sector_exposure": "+3.8%"
-  }
-}
-```
-
-#### agent.json 配置
-```json
-{
-  "name": "strategy_generator",
-  "version": "1.0.0",
-  "description": "基于分析结果和持仓数据生成具体交易策略，包含风控检查",
-  "prompt": {
-    "system": "你是专业交易策略师，基于多维度分析和当前持仓情况，生成清晰具体的交易信号。风控检查采用软性提醒，超限时给出警告但允许策略生成。"
-  },
-  "tools": {
-    "auto_discover": true,
-    "enabled": ["get_positions", "risk_check", "calc_signals"],
-    "disabled": []
-  },
-  "skills": {
-    "sources": ["skills/"],
-    "inline": []
-  },
-  "runtime": {
-    "max_steps": 6,
-    "experience_enabled": true
-  }
-}
-```
-
-### 2.4 Reporter（报告生成子智能体）
+### 3.4 Reporter（报告生成子智能体）
 
 #### 职责
 将分析结果和策略转化为用户友好的文本报告。
 
-#### Skills 配置
-- `report_template`: 定义报告结构、语气、格式规范
+#### 完整实现
 
-#### Tools 配置
-- `format`: 报告格式化工具（章节生成、风险评级计算）
+```python
+# subagents/reporter/agent.py
+
+from pathlib import Path
+from pstock_sdk import Agent, AgentBuilder, LLM
+from .tools import format_tool
+
+
+def create(llm: LLM) -> Agent:
+    """创建 Reporter 子智能体"""
+    return (AgentBuilder()
+        .with_name("reporter")
+        .with_description("分析报告生成智能体，结构化输出专业投资报告")
+        .with_instructions(_load_instructions())
+        .with_max_steps(3)
+        .with_tools([format_tool])
+        .with_skill_sources([
+            str(Path(__file__).parent / "skills" / "report_template")
+        ])
+        .build())
+```
 
 #### 输出报告结构
+
 ```
 === [股票代码] 综合分析报告 ===
 
@@ -325,56 +402,30 @@
    - 行业周期: ...
    - 政策影响: ...
 
-六、交易策略                  ← 新增章节
+六、交易策略
    操作建议: [加仓]
    建议数量: 50股
    目标价位: $175.00
    止损价位: $168.00
    止盈价位: $195.00
-   策略依据: ...
 
    风控提醒:
    - 单股权重将达14.2%，略超10%上限
-   - 科技股权重已达45%
 
 七、风险提示
    - 主要风险点
 ```
 
-#### agent.json 配置
-```json
-{
-  "name": "reporter",
-  "version": "1.0.0",
-  "description": "分析报告生成智能体，结构化输出专业投资报告",
-  "prompt": {
-    "system": "你是专业报告撰写人，负责将分析结论和交易策略转化为清晰、专业、易读的投资报告。保持客观中立。"
-  },
-  "skills": {
-    "sources": ["skills/"],
-    "inline": []
-  },
-  "tools": {
-    "auto_discover": true,
-    "enabled": ["format"],
-    "disabled": []
-  },
-  "runtime": {
-    "max_steps": 3,
-    "experience_enabled": false
-  }
-}
-```
-
 ---
 
-## 3. 数据流与接口设计
+## 4. 数据流与接口设计
 
-### 3.1 智能体间通信协议
+### 4.1 智能体间通信协议
 
-子智能体之间通过 PStock 的 AgentAdapterTool 进行调用，数据传递采用标准化 JSON 格式。
+子智能体之间通过 PStock 的 `AgentAdapterTool` 进行调用，数据传递采用标准化 JSON 格式。
 
 #### DataFetcher → Analyzer 数据格式
+
 ```json
 {
   "symbol": "AAPL",
@@ -384,34 +435,27 @@
       "current": 178.50,
       "change": 2.35,
       "change_percent": 1.33,
-      "ohlcv": [...],
-      "volume": "45.2M"
+      "ohlcv": [...]
     },
     "financial": {
       "pe": 28.5,
       "pb": 45.2,
-      "roe": 0.156,
-      "revenue": "383.3B",
-      "net_income": "97.0B",
-      "debt_ratio": 0.35
+      "roe": 0.156
     },
     "sentiment": {
       "score": 0.72,
-      "analyst_rating": "buy",
-      "flow": "inflow",
-      "news_sentiment": "positive"
+      "analyst_rating": "buy"
     },
     "macro": {
       "rate": 5.25,
-      "inflation": 3.2,
-      "sector_outlook": "positive",
-      "gdp_growth": 2.1
+      "inflation": 3.2
     }
   }
 }
 ```
 
 #### Analyzer → StrategyGenerator 数据格式
+
 ```json
 {
   "symbol": "AAPL",
@@ -420,33 +464,19 @@
       "trend": "bullish",
       "support": 172.50,
       "resistance": 185.00,
-      "indicators": {
-        "macd": "buy",
-        "rsi": 58.2,
-        "ma_signal": "golden_cross"
-      },
       "conclusion": "上升趋势延续，建议回调买入"
     },
     "fundamental": {
-      "valuation": {
-        "status": "fair",
-        "method": "DCF",
-        "target_price": 195.00
-      },
-      "financial_health": "excellent",
-      "competitive_advantage": "strong",
+      "valuation": "fair",
+      "target_price": 195.00,
       "conclusion": "基本面稳健，长期持有价值较高"
     },
     "sentiment": {
       "overall": "positive",
-      "key_factors": ["财报超预期", "机构增持"],
-      "analyst_consensus": "buy",
       "conclusion": "市场情绪积极，资金持续流入"
     },
     "macro": {
       "impact": "positive",
-      "risks": ["利率高位", "地缘政治"],
-      "sector_cycle": "expansion",
       "conclusion": "宏观环境整体利好，需关注利率变化"
     }
   }
@@ -454,15 +484,10 @@
 ```
 
 #### StrategyGenerator → Reporter 数据格式
+
 ```json
 {
   "symbol": "AAPL",
-  "analyses": {
-    "technical": { "conclusion": "..." },
-    "fundamental": { "conclusion": "..." },
-    "sentiment": { "conclusion": "..." },
-    "macro": { "conclusion": "..." }
-  },
   "strategy": {
     "action": "BUY",
     "action_cn": "加仓",
@@ -470,23 +495,20 @@
     "target_price": 175.00,
     "stop_loss": 168.00,
     "take_profit": 195.00,
-    "reasoning": "技术面上升趋势延续，基本面稳健，当前仓位8.2%低于目标12%，建议逢低加仓",
-    "priority": "MEDIUM"
+    "reasoning": "技术面上升趋势延续，基本面稳健"
   },
   "risk_alerts": [
-    "单股权重将达14.2%，略超10%上限，请注意控制",
-    "科技股权重已达45%，建议关注行业集中度"
+    "单股权重将达14.2%，略超10%上限"
   ],
   "portfolio_impact": {
     "current_weight": 8.2,
     "new_weight": 14.2,
-    "cash_after": 32750.00,
-    "sector_exposure": "+3.8%"
+    "cash_after": 32750.00
   }
 }
 ```
 
-### 3.2 主智能体协调流程
+### 4.2 主智能体协调流程
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -517,7 +539,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.3 错误处理策略
+### 4.3 错误处理策略
 
 | 错误场景 | 处理方式 | 降级方案 |
 |---------|---------|---------|
@@ -528,231 +550,129 @@
 | 风控超限 | 记录警告，继续生成策略 | 在报告中醒目提示风险 |
 | 子智能体不可用 | 自动降级到 Skills 模式 | 主智能体直接调用 Skills |
 
-### 3.4 接口定义
-
-#### get_positions Tool
-```python
-class GetPositionsTool(BaseTool):
-    name: str = "get_positions"
-    description: str = "从券商API获取当前账户持仓数据"
-
-    async def execute(self, input: dict, context=None) -> str:
-        # input: { broker: str, account_id: str }
-        # 返回 JSON 格式的持仓数据
-```
-
-#### risk_check Tool
-```python
-class RiskCheckTool(BaseTool):
-    name: str = "risk_check"
-    description: str = "风控检查：单股上限、总体仓位、行业集中度"
-
-    async def execute(self, input: dict, context=None) -> str:
-        # input: { positions: [...], new_strategy: {...} }
-        # 返回风险报告和警告列表
-```
-
-#### calc_signals Tool
-```python
-class CalcSignalsTool(BaseTool):
-    name: str = "calc_signals"
-    description: str = "基于分析结论和持仓计算交易信号"
-
-    async def execute(self, input: dict, context=None) -> str:
-        # input: { analyses: {...}, positions: [...] }
-        # 返回交易信号（action/quantity/price等）
-```
-
 ---
 
-## 4. 实现计划与目录结构
+## 5. 实现计划与目录结构
 
-### 4.1 完整目录结构
+### 5.1 完整目录结构
 
 ```
 src/pstock_agent/stock_trader/
-├── agent.json                      # 主智能体配置
+├── __init__.py                     # 包入口，导出 create_stock_trader()
+├── agent.py                        # 主智能体定义
 ├── prompt.md                       # 主智能体系统提示
-├── README.md                       # 智能体使用说明
+├── README.md                       # 使用说明
 │
 ├── subagents/
+│   ├── __init__.py                 # 子智能体工厂模块
 │   │
 │   ├── data_fetcher/               # 数据获取子智能体
-│   │   ├── agent.json
-│   │   ├── prompt.md
+│   │   ├── __init__.py             # 导出 create()
+│   │   ├── agent.py                # 智能体定义 (AgentBuilder)
+│   │   ├── prompt.md                # 系统提示词
 │   │   ├── tools/
 │   │   │   ├── __init__.py
-│   │   │   ├── stock_price.py      # 股价数据（yfinance/AKShare）
-│   │   │   ├── financial_data.py   # 财务数据（财报/估值指标）
-│   │   │   ├── sentiment.py        # 市场情绪（舆情/资金流向）
-│   │   │   └── macro_data.py       # 宏观数据（利率/通胀）
+│   │   │   ├── stock_price.py
+│   │   │   ├── financial_data.py
+│   │   │   ├── sentiment.py
+│   │   │   └── macro_data.py
 │   │   └── skills/
 │   │       └── data_quality/
 │   │           └── SKILL.md
 │   │
 │   ├── analyzer/                   # 分析处理子智能体
-│   │   ├── agent.json
+│   │   ├── __init__.py
+│   │   ├── agent.py
 │   │   ├── prompt.md
 │   │   ├── tools/
 │   │   │   ├── __init__.py
-│   │   │   └── indicators.py       # 技术指标计算（TA-Lib）
+│   │   │   └── indicators.py
 │   │   └── skills/
 │   │       ├── technical/
-│   │       │   └── SKILL.md        # 技术分析：MA/MACD/RSI/KDJ
 │   │       ├── fundamental/
-│   │       │   └── SKILL.md        # 基本面：PE/PB/ROE/DCF
 │   │       ├── sentiment/
-│   │       │   └── SKILL.md        # 情绪：资金流/舆情/评级
 │   │       └── macro/
-│   │           └── SKILL.md        # 宏观：利率/政策/行业
 │   │
 │   ├── strategy_generator/         # 策略生成子智能体
-│   │   ├── agent.json
+│   │   ├── __init__.py
+│   │   ├── agent.py
 │   │   ├── prompt.md
 │   │   ├── tools/
 │   │   │   ├── __init__.py
-│   │   │   ├── get_positions.py    # 券商API持仓获取
-│   │   │   ├── risk_check.py       # 风控检查工具
-│   │   │   └── calc_signals.py     # 交易信号计算
+│   │   │   ├── get_positions.py
+│   │   │   ├── risk_check.py
+│   │   │   └── calc_signals.py
 │   │   └── skills/
 │   │       ├── position_sizing/
-│   │       │   └── SKILL.md        # 仓位管理策略
 │   │       ├── entry_strategy/
-│   │       │   └── SKILL.md        # 入场策略
 │   │       ├── exit_strategy/
-│   │       │   └── SKILL.md        # 出场策略
 │   │       └── portfolio_mgmt/
-│   │           └── SKILL.md        # 组合管理
 │   │
 │   └── reporter/                   # 报告生成子智能体
-│       ├── agent.json
+│       ├── __init__.py
+│       ├── agent.py
 │       ├── prompt.md
 │       ├── tools/
 │       │   ├── __init__.py
-│       │   └── format.py          # 报告格式化工具
+│       │   └── format.py
 │       └── skills/
 │           └── report_template/
-│               └── SKILL.md        # 报告模板与格式规范
 │
-├── tools/                          # 主智能体工具
+├── tools/                          # 主智能体工具 (可选)
 │   ├── __init__.py
-│   └── portfolio.py               # 组合管理工具（批量分析）
+│   └── portfolio.py
 │
-└── tests/                         # 单元测试
+└── tests/
     ├── test_data_fetcher.py
     ├── test_analyzer.py
     ├── test_strategy_generator.py
     └── test_reporter.py
 ```
 
-### 4.2 实现优先级
+### 5.2 主智能体完整实现
 
-#### Phase 1 - 核心框架（Week 1）
-- [ ] 创建目录结构和基础配置文件
-- [ ] 实现主智能体 agent.json 和 prompt.md
-- [ ] 搭建四个子智能体骨架
-- [ ] 完成基础的子智能体调用链路测试
+```python
+# src/pstock_agent/stock_trader/agent.py
 
-#### Phase 2 - 数据层（Week 1-2）
-- [ ] 实现 DataFetcher 的4个工具（使用 yfinance/AKShare）
-- [ ] 实现 data_quality Skill
-- [ ] 数据格式标准化与错误处理
+from pathlib import Path
+from pstock_sdk import Agent, AgentBuilder, LLM
 
-#### Phase 3 - 分析层（Week 2-3）
-- [ ] 实现 Analyzer 的4个 Skills（逐步迭代）
-- [ ] 实现 indicators 工具（集成 TA-Lib）
-- [ ] 分析结论结构化输出
+from .subagents.data_fetcher import create as create_data_fetcher
+from .subagents.analyzer import create as create_analyzer
+from .subagents.strategy_generator import create as create_strategy_generator
+from .subagents.reporter import create as create_reporter
 
-#### Phase 4 - 策略层（Week 3）
-- [ ] 实现 StrategyGenerator 的 tools（券商API集成）
-- [ ] 实现 4 个策略相关 Skills
-- [ ] 风控检查逻辑实现
 
-#### Phase 5 - 报告层（Week 3-4）
-- [ ] 实现 Reporter 的 report_template Skill
-- [ ] 实现 format 工具
-- [ ] 报告模板优化（包含策略章节）
+def create(llm: LLM) -> Agent:
+    """创建 StockTrader 主智能体"""
+    # 创建子智能体
+    data_fetcher = create_data_fetcher(llm)
+    analyzer = create_analyzer(llm)
+    strategy_generator = create_strategy_generator(llm)
+    reporter = create_reporter(llm)
 
-#### Phase 6 - 完善与测试（Week 4）
-- [ ] 端到端流程测试
-- [ ] 异常场景覆盖
-- [ ] 文档完善
+    return (AgentBuilder()
+        .with_name("stock_trader")
+        .with_description("股票研究分析智能体 - 自动化多维度分析与策略生成")
+        .with_instructions(_load_instructions())
+        .with_max_steps(12)
+        .with_children([
+            data_fetcher,
+            analyzer,
+            strategy_generator,
+            reporter,
+        ])
+        .with_memory_enabled(True)
+        .build())
 
-### 4.3 技术选型建议
 
-| 组件 | 推荐方案 | 说明 |
-|-----|---------|------|
-| 股价数据 | yfinance / AKShare | yfinance国际市场，AKShare国内市场 |
-| 财务数据 | AKShare / 财报API | 支持A股财务报表 |
-| 技术指标 | TA-Lib | 行业标准技术分析库 |
-| 情绪数据 | 东方财富 / 同花顺API | 需要调研可用的免费/付费API |
-| 宏观数据 | FRED / TradingView | 美联储FRED数据最权威 |
-| 券商API | Interactive Brokers / 富途 / 东方财富 | 根据目标市场选择 |
+def _load_instructions() -> str:
+    """加载系统提示词"""
+    prompt_path = Path(__file__).parent / "prompt.md"
+    if prompt_path.exists():
+        return prompt_path.read_text(encoding="utf-8")
 
-### 4.4 依赖项
-
-```toml
-[dependencies]
-pstock-sdk = { path = "../pstock_sdk" }
-pstock-framework = { path = "../pstock_framework" }
-
-yfinance = "^0.2.0"      # 股价数据
-akshare = "^1.12.0"     # A股数据
-ta-lib = "^0.4.0"       # 技术指标
-pandas = "^2.0.0"       # 数据处理
-
-# 券商API（可选，根据选择）
-ibapi = "^10.0.0"       # Interactive Brokers
-# futu = "^6.0.0"       # 富途OpenD
-```
-
----
-
-## 5. 配置示例与使用方式
-
-### 5.1 主智能体配置 (agent.json)
-
-```json
-{
-  "name": "stock_trader",
-  "version": "1.0.0",
-  "description": "股票研究分析智能体 - 自动化多维度分析与策略生成",
-  "model": null,
-  "prompt": {
-    "file": "prompt.md"
-  },
-  "skills": {
-    "sources": [],
-    "inline": []
-  },
-  "tools": {
-    "auto_discover": true,
-    "enabled": [],
-    "disabled": []
-  },
-  "subagents": [
-    { "name": "data_fetcher", "enabled": true },
-    { "name": "analyzer", "enabled": true },
-    { "name": "strategy_generator", "enabled": true },
-    { "name": "reporter", "enabled": true }
-  ],
-  "runtime": {
-    "max_steps": 12,
-    "workspace_root": null,
-    "mcp_lazy_load": false,
-    "mcp_servers": [],
-    "experience_enabled": true,
-    "knowledge_base": null
-  }
-}
-```
-
-### 5.2 主智能体系统提示 (prompt.md)
-
-```markdown
-# StockTrader 主智能体
-
-你是一个专业的股票研究分析智能体，负责协调子智能体完成全自动化的股票分析和策略生成流程。
+    return """你是专业的股票研究分析智能体，负责协调子智能体完成全自动化的股票分析和策略生成流程。
 
 ## 工作流程
 
@@ -764,55 +684,171 @@ ibapi = "^10.0.0"       # Interactive Brokers
 4. **报告生成阶段**：调用 `reporter` 子智能体生成最终报告
 5. **结果返回**：将完整的分析报告返回给用户
 
+## 子智能体说明
+
+- data_fetcher: 获取股价、财务、情绪、宏观数据
+- analyzer: 技术面、基本面、情绪面、宏观面分析
+- strategy_generator: 基于分析结果和持仓生成交易策略
+- reporter: 生成结构化的投资报告
+
 ## 重要原则
 
 - 每个阶段只调用对应的子智能体，不要跳过或重复调用
 - 如果某个子智能体执行失败，记录错误信息并尝试继续后续流程
 - 最终报告必须包含所有四个维度的分析结论和交易策略
 - 保持客观中立，明确标注不确定性
-- 策略生成时结合当前持仓，给出具体可操作的建议
-
-## 输出格式
-
-最终输出必须为完整的文本报告，包含：核心结论、技术分析、基本面分析、市场情绪、宏观环境、交易策略、风险提示。
+"""
 ```
 
-### 5.3 使用示例
+### 5.3 实现优先级
 
-#### Python API
+#### Phase 1 - 核心框架（Week 1）
+- 创建目录结构
+- 实现四个子智能体的 `agent.py` 骨架（`create()` 函数）
+- 实现主智能体 `agent.py`
+- 完成基础的子智能体调用链路测试
+
+#### Phase 2 - 数据层（Week 1-2）
+- 实现 DataFetcher 的 4 个工具（yfinance/AKShare）
+- 实现 data_quality Skill
+- 数据格式标准化与错误处理
+
+#### Phase 3 - 分析层（Week 2-3）
+- 实现 Analyzer 的 4 个 Skills
+- 实现 indicators 工具（集成 TA-Lib）
+- 分析结论结构化输出
+
+#### Phase 4 - 策略层（Week 3）
+- 实现 StrategyGenerator 的 tools（券商API集成）
+- 实现 4 个策略相关 Skills
+- 风控检查逻辑实现
+
+#### Phase 5 - 报告层（Week 3-4）
+- 实现 Reporter 的 report_template Skill
+- 实现 format 工具
+- 报告模板优化
+
+#### Phase 6 - 完善与测试（Week 4）
+- 端到端流程测试
+- 异常场景覆盖
+- 文档完善
+
+### 5.4 技术选型
+
+| 组件 | 推荐方案 | 说明 |
+|-----|---------|------|
+| 股价数据 | yfinance / AKShare | 国际市场用 yfinance，A股用 AKShare |
+| 财务数据 | AKShare | 支持 A 股财务报表 |
+| 技术指标 | TA-Lib | 行业标准技术分析库 |
+| 情绪数据 | 东方财富 / 同花顺API | 需调研可用 API |
+| 宏观数据 | FRED | 美联储数据最权威 |
+| 券商API | Interactive Brokers / 富途 | 根据目标市场选择 |
+
+### 5.5 依赖项
+
+```toml
+# pyproject.toml
+
+[project]
+name = "pstock-agent"
+version = "0.1.0"
+dependencies = [
+    "pstock-sdk = { path = ../pstock_sdk }",
+]
+
+[tool.uv.dependencies]
+yfinance = ">=0.2.0"
+akshare = ">=1.12.0"
+ta-lib = ">=0.4.0"
+pandas = ">=2.0.0"
+```
+
+---
+
+## 6. 使用方式
+
+### 6.1 Python API
+
 ```python
-from pstock_framework import AgentFrameworkLoader
+import asyncio
 from pstock_sdk import OpenAILLM
+from pstock_agent.stock_trader import create_stock_trader
 
-# 初始化
-llm = OpenAILLM(api_key="sk-xxx", options={"model": "gpt-4o"})
-loader = AgentFrameworkLoader(agents_root="src/pstock_agent/", default_llm=llm)
-await loader.load_all()
 
-# 获取智能体
-stock_trader = loader.get_agent("stock_trader")
+async def main():
+    # 初始化 LLM
+    llm = OpenAILLM(
+        api_key="sk-xxx",
+        options={"model": "gpt-4o"}
+    )
 
-# 执行分析
-result = await stock_trader.run("分析 AAPL 股票")
-print(result.output)
+    # 创建智能体
+    agent = create_stock_trader(llm)
+
+    # 执行分析
+    result = await agent.run("分析 AAPL 股票")
+
+    # 输出报告
+    print(result.output)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-#### 命令行使用
+### 6.2 命令行入口
+
+```python
+# src/pstock_agent/stock_trader/__main__.py
+
+import asyncio
+import sys
+from pstock_sdk import OpenAILLM
+from . import create_stock_trader
+
+
+async def cli_main():
+    llm = OpenAILLM.from_env()  # 从环境变量读取配置
+
+    agent = create_stock_trader(llm)
+
+    task = " ".join(sys.argv[1:]) or "分析 AAPL"
+
+    result = await agent.run(task)
+    print(result.output)
+
+
+if __name__ == "__main__":
+    asyncio.run(cli_main())
+```
+
+### 6.3 包入口模块
+
+```python
+# src/pstock_agent/stock_trader/__init__.py
+from .agent import create as create_stock_trader
+
+__all__ = ["create_stock_trader"]
+```
+
+```python
+# src/pstock_agent/__init__.py
+from .stock_trader import create_stock_trader
+
+__all__ = ["create_stock_trader"]
+```
+
+### 6.4 命令行使用
+
 ```bash
-# 交互模式
+# 直接运行
+python -m pstock_agent.stock_trader "分析 AAPL"
+
+# 交互模式 (可选扩展)
 python -m pstock_agent.stock_trader --interactive
-
-# 单次查询
-python -m pstock_agent.stock_trader "分析 NVDA"
-
-# 批量分析
-python -m pstock_agent.stock_trader --batch AAPL,MSFT,GOOGL
-
-# 指定券商账户
-python -m pstock_agent.stock_trader "分析 TSLA" --broker ib --account U123456
 ```
 
-### 5.4 输出报告示例
+### 6.5 输出报告示例
 
 ```
 === AAPL 综合分析报告 ===
@@ -828,24 +864,20 @@ python -m pstock_agent.stock_trader "分析 TSLA" --broker ib --account U123456
    趋势判断: 周期向上，短期回调后延续升势
    关键点位: 支撑 $172.50 | 阻力 $185.00
    指标信号: MACD金叉 | RSI 58.2(中性偏多)
-   量能分析: 近期放量上涨，资金介入明显
 
 三、基本面分析
    估值水平: PE 28.5x，略高于行业均值(25.2x)
    财务健康: 现金流充沛，资产负债率健康
    盈利能力: ROE 15.6%，毛利率持续提升
-   竞争优势: 生态壁垒稳固，创新能力强
 
 四、市场情绪
    整体情绪: 积极
    资金流向: 近5日净流入 $2.3B
    分析师评级: 32家买入，5家持有，0家卖出
-   关键驱动: iPhone销量超预期，AI功能获关注
 
 五、宏观环境
    行业周期: 消费电子回暖周期
    政策影响: 美联储利率维持高位，科技股估值承压
-   地缘风险: 供应链多元化策略降低地缘风险
 
 六、交易策略
    操作建议: [加仓 BUY]
@@ -861,11 +893,6 @@ python -m pstock_agent.stock_trader "分析 TSLA" --broker ib --account U123456
    - 当前持仓100股(市值$17,850)，占比8.2%
    - 目标仓位12%，建议加仓50股
 
-   组合影响:
-   - 当前权重: 8.2% → 建议后: 14.2%
-   - 剩余现金: $50,000 → $32,750
-   - 科技股权重: 41.2% → 45.0%
-
    风控提醒:
    ⚠️ 单股权重将达14.2%，略超10%建议上限
    ⚠️ 科技股权重已达45%，建议关注行业集中度风险
@@ -874,7 +901,6 @@ python -m pstock_agent.stock_trader "分析 TSLA" --broker ib --account U123456
    - 中国市场竞争加剧，销量增速放缓
    - 高利率环境压制科技股估值
    - 监管政策变化可能影响服务业务
-   - 短期技术回调风险(RSI接近超买区)
 
 ---
 本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。
@@ -893,12 +919,10 @@ python -m pstock_agent.stock_trader "分析 TSLA" --broker ib --account U123456
 | Tool | 可调用的工具，封装具体的功能实现 |
 | AgentAdapterTool | 将子智能体包装为工具的适配器 |
 | OHLCV | Open/High/Low/Close/Volume，K线数据格式 |
-| 仓位管理 | 控制每笔交易投入资金比例的策略 |
-| 止损/止盈 | 限制亏损/锁定盈利的预设价格 |
 
 ### B. 参考资料
 
-- [PStock Framework Documentation](../src/pstock_framework/README.md)
+- [PStock SDK Documentation](../src/pstock_sdk/README.md)
 - [Claude Skills Specification](https://docs.anthropic.com/claude/docs/skills-for-claude)
 - [TA-Lib Documentation](https://ta-lib.org/)
 - [yfinance Documentation](https://github.com/ranaroussi/yfinance)
@@ -909,6 +933,7 @@ python -m pstock_agent.stock_trader "分析 TSLA" --broker ib --account U123456
 | 版本 | 日期 | 变更内容 | 作者 |
 |-----|------|---------|------|
 | 1.0.0 | 2025-01-15 | 初始设计文档（包含策略生成） | PStock Team |
+| 2.0.0 | 2026-02-12 | 重构为编程式构建，移除 agent.json | PStock Team |
 
 ---
 
