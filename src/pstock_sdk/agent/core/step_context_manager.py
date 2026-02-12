@@ -5,6 +5,7 @@ Step Context Manager - 单次对话上下文管理器
 """
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from ..memory.compressor import ContextCompressor
@@ -204,7 +205,7 @@ class StepContextManager:
 
     def _build_system_message(self) -> ChatMessage:
         """构建系统提示词"""
-        return ChatMessage(role="system", content=self._build_system_prompt())
+        return ChatMessage(role="system", content=self._build_system_prompt_from_template())
 
     def _build_system_prompt(self) -> str:
         """构建系统提示词"""
@@ -221,6 +222,16 @@ class StepContextManager:
             parts.append(f"Your workspace root is at: {self.workspace_root}")
 
         return "\n\n".join(parts)
+    
+    def _build_system_prompt_from_template(self) -> str:
+        """从模板构建系统提示词"""
+        return system_prompt_template.format(
+            agent_name=self.agent_name,
+            agent_description=self.agent_description,
+            agent_instructions=self.agent_instructions or "Use ReAct style with OpenAI function calling. Call tools when helpful and provide a concise final answer when done.",
+            workspace_root=self.workspace_root or "N/A",
+            today=datetime.now().strftime("%Y-%m-%d"),
+        )
 
     def _build_memory_message(self) -> ChatMessage | None:
         """
