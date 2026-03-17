@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-PStock 完整功能智能体示例
+AI Flex 完整功能智能体示例
 
-创建一个使用所有 PStock SDK Agent 功能的智能体。
+创建一个使用所有 AI Flex SDK Agent 功能的智能体。
 
 功能列表：
 1. ReAct 框架 - 思考-行动-观察循环
@@ -325,7 +325,7 @@ def create_full_featured_agent() -> Agent:
 async def demonstrate_all_features():
     """演示所有功能"""
     print("=" * 70)
-    print(" " * 18 + "PStock 全功能 Agent 演示")
+    print(" " * 18 + "AI Flex 全功能 Agent 演示")
     print("=" * 70)
 
     # 检查 API Key
@@ -349,7 +349,7 @@ async def demonstrate_all_features():
 def serve_agent():
     """演示所有功能"""
     print("=" * 70)
-    print(" " * 18 + "PStock 全功能 Agent 演示")
+    print(" " * 18 + "AI Flex 全功能 Agent 演示")
     print("=" * 70)
 
     # 检查 API Key

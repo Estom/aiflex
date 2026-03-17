@@ -1,5 +1,5 @@
 """
-PStock Framework - 配置模块
+AI Flex Framework - 配置模块
 
 导出所有配置模型。
 """

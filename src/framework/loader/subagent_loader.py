@@ -1,5 +1,5 @@
 """
-PStock Framework - 子 Agent 加载器
+AI Flex Framework - 子 Agent 加载器
 
 负责递归加载子 Agent。
 """

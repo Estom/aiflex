@@ -1,7 +1,7 @@
 """
-PStock Server - Pydantic models for API
+AI Flex Server - Pydantic models for API
 
-This module defines the data models used in the PStock Server API.
+This module defines the data models used in the AI Flex Server API.
 """
 
 from datetime import datetime

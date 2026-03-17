@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-PStock Agent 完整功能示例
+AI Flex Agent 完整功能示例
 
-本示例展示了 PStock SDK Agent 的所有功能特性：
+本示例展示了 AI Flex SDK Agent 的所有功能特性：
 
 1. ReAct 框架 - 思考-行动-观察循环
 2. 工具调用 - 内置工具和自定义工具
@@ -495,7 +495,7 @@ async def demo_stream_output():
 async def demo_all_features():
     """运行所有功能演示"""
     print("\n" + "=" * 70)
-    print(" " * 15 + "PStock Agent 完整功能演示")
+    print(" " * 15 + "AI Flex Agent 完整功能演示")
     print("=" * 70)
 
     # 检查 API Key

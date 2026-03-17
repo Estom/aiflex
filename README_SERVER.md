@@ -1,8 +1,8 @@
-# PStock Server - Agent Marketplace Documentation
+# AI Flex Server - Agent Marketplace Documentation
 
 ## 概述
 
-`server` 是 PStock 框架的 Web 服务器模块，提供 Agent 市场、交互式聊天和多种运行模式。
+`server` 是 AI Flex 框架的 Web 服务器模块，提供 Agent 市场、交互式聊天和多种运行模式。
 
 ## 功能特性
 
@@ -266,10 +266,10 @@ python examples/server_demo.py --list
 
 `.vscode/launch.json` 已配置好四种调试模式：
 
-1. **PStock Server: Web Mode** - Web 服务器调试
-2. **PStock Server: Interactive Mode** - 交互式模式调试
-3. **PStock Server: Prompt Mode** - 单次提示模式调试
-4. **PStock Server: List Agents** - 列出 Agent 调试
+1. **AI Flex Server: Web Mode** - Web 服务器调试
+2. **AI Flex Server: Interactive Mode** - 交互式模式调试
+3. **AI Flex Server: Prompt Mode** - 单次提示模式调试
+4. **AI Flex Server: List Agents** - 列出 Agent 调试
 
 按 `F5` 或使用调试面板选择配置启动。
 

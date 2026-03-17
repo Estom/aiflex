@@ -3,7 +3,7 @@
 **版本**: 2.0.0
 **创建日期**: 2025-01-15
 **更新日期**: 2026-02-12
-**作者**: PStock Team
+**作者**: AI Flex Team
 **状态**: 设计阶段（编程式构建）
 
 ---
@@ -23,7 +23,7 @@
 
 ### 1.1 项目概述
 
-**StockTrader** 是一个基于 PStock 框架的股票研究分析智能体系统。该系统采用多智能体协作架构，通过子智能体分工协作实现全自动化的股票分析流程。系统专注于研究和分析，不涉及实盘交易操作，输出结构化的文本分析报告。
+**StockTrader** 是一个基于 AI Flex 框架的股票研究分析智能体系统。该系统采用多智能体协作架构，通过子智能体分工协作实现全自动化的股票分析流程。系统专注于研究和分析，不涉及实盘交易操作，输出结构化的文本分析报告。
 
 ### 1.2 需求分析
 
@@ -422,7 +422,7 @@ def create(llm: LLM) -> Agent:
 
 ### 4.1 智能体间通信协议
 
-子智能体之间通过 PStock 的 `AgentAdapterTool` 进行调用，数据传递采用标准化 JSON 格式。
+子智能体之间通过 AI Flex 的 `AgentAdapterTool` 进行调用，数据传递采用标准化 JSON 格式。
 
 #### DataFetcher → Analyzer 数据格式
 
@@ -750,10 +750,10 @@ def _load_instructions() -> str:
 # pyproject.toml
 
 [project]
-name = "pstock-agent"
+name = "aiflex-agent"
 version = "0.1.0"
 dependencies = [
-    "pstock-sdk = { path = ../sdk }",
+    "aiflex-sdk = { path = ../sdk }",
 ]
 
 [tool.uv.dependencies]
@@ -922,7 +922,7 @@ python -m agent.stock_trader --interactive
 
 ### B. 参考资料
 
-- [PStock SDK Documentation](../src/sdk/README.md)
+- [AI Flex SDK Documentation](../src/sdk/README.md)
 - [Claude Skills Specification](https://docs.anthropic.com/claude/docs/skills-for-claude)
 - [TA-Lib Documentation](https://ta-lib.org/)
 - [yfinance Documentation](https://github.com/ranaroussi/yfinance)
@@ -932,8 +932,8 @@ python -m agent.stock_trader --interactive
 
 | 版本 | 日期 | 变更内容 | 作者 |
 |-----|------|---------|------|
-| 1.0.0 | 2025-01-15 | 初始设计文档（包含策略生成） | PStock Team |
-| 2.0.0 | 2026-02-12 | 重构为编程式构建，移除 agent.json | PStock Team |
+| 1.0.0 | 2025-01-15 | 初始设计文档（包含策略生成） | AI Flex Team |
+| 2.0.0 | 2026-02-12 | 重构为编程式构建，移除 agent.json | AI Flex Team |
 
 ---
 

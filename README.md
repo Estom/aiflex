@@ -1,4 +1,4 @@
-# PStock
+# AI Flex
 一个功能强大的 Python AI Agent 框架，专为金融分析和股票交易场景设计。实现了 ReAct 风格的智能体运行时，支持工具调用、MCP 集成、知识库检索、记忆管理和技能系统。
 
 ## 核心特性
@@ -53,7 +53,7 @@ python run_agent.py "简要分析苹果公司(AAPL)的当前状况"
 ## 项目结构
 
 ```
-pstock/
+aiflex/
 ├── src/
 │   ├── sdk/              # 核心 SDK
 │   │   ├── agent/

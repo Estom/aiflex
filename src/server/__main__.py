@@ -1,5 +1,5 @@
 """
-PStock Server - Main Entry Point
+AI Flex Server - Main Entry Point
 
 This module allows running the server directly with `python -m server`.
 """

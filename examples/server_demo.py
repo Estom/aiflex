@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-PStock Server Demo Script
+AI Flex Server Demo Script
 
 This script demonstrates how to:
-1. Create agents using the PStock SDK
+1. Create agents using the AI Flex SDK
 2. Register them to the marketplace
 3. Start the AgentServer with different modes
 

@@ -1,8 +1,8 @@
-# PStock 智能体运行指南
+# AI Flex 智能体运行指南
 
 ## ✅ 成功运行！
 
-您的 PStock 智能体框架已经成功运行！上面您看到的是使用**模拟LLM**的演示结果。
+您的 AI Flex 智能体框架已经成功运行！上面您看到的是使用**模拟LLM**的演示结果。
 
 ## 📊 运行结果展示
 
@@ -270,7 +270,7 @@ python run_agent.py "评估投资NVDA的风险和收益"
 
 - [框架实现总结](FRAMEWORK_SUMMARY.md)
 - [智能体创建指南](agents/README.md)
-- [PStock SDK 文档](src/sdk/README.md)
+- [AI Flex SDK 文档](src/sdk/README.md)
 
 ## 🆘 故障排除
 

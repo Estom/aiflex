@@ -1,6 +1,6 @@
-# PStock SDK
+# AI Flex SDK
 
-PStock SDK 是一个基于 Python 的 AI Agent 框架，专为金融分析和股票交易场景设计。它实现了 ReAct 风格的智能体运行时，支持工具调用、MCP 集成、知识库检索、记忆管理和技能系统。
+AI Flex SDK 是一个基于 Python 的 AI Agent 框架，专为金融分析和股票交易场景设计。它实现了 ReAct 风格的智能体运行时，支持工具调用、MCP 集成、知识库检索、记忆管理和技能系统。
 
 ## 目录
 

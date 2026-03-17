@@ -1,4 +1,4 @@
-# 🚀 PStock 智能体 - 快速参考
+# 🚀 AI Flex 智能体 - 快速参考
 
 ## 一键启动
 
@@ -77,7 +77,7 @@ python run_agent.py "如何降低投资风险？"
 ## 目录结构
 
 ```
-pstock/
+aiflex/
 ├── src/framework/      # 框架代码
 ├── agents/                     # 智能体目录
 │   └── financial_analyst/     # 金融分析师

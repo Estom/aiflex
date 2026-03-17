@@ -19,7 +19,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 from .mcp_config import McpServerConfig
 
-CLIENT_INFO = {"name": "pstock-mcp-client", "version": "0.1.0"}
+CLIENT_INFO = {"name": "aiflex-mcp-client", "version": "0.1.0"}
 
 
 class TransportType(str, Enum):

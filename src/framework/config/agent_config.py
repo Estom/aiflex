@@ -1,5 +1,5 @@
 """
-PStock Framework - Agent 配置模型
+AI Flex Framework - Agent 配置模型
 
 定义 agent.json 的 Pydantic 模型。
 """

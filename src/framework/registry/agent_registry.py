@@ -1,5 +1,5 @@
 """
-PStock Framework - Agent 注册表
+AI Flex Framework - Agent 注册表
 
 中央 Agent 注册表，用于存储和查找已加载的 Agent。
 """

@@ -1,5 +1,5 @@
 """
-PStock Framework - Agent 加载器
+AI Flex Framework - Agent 加载器
 
 主加载器，协调所有组件加载 Agent。
 """

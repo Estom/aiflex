@@ -1,5 +1,5 @@
 """
-PStock Server - Agent Registry
+AI Flex Server - Agent Registry
 
 This module provides a central registry for managing agents in the marketplace.
 """

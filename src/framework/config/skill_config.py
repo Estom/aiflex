@@ -1,5 +1,5 @@
 """
-PStock Framework - Skill 配置模型
+AI Flex Framework - Skill 配置模型
 
 定义 SKILL.md frontmatter 的 Pydantic 模型。
 """

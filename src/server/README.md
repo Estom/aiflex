@@ -1,6 +1,6 @@
-# PStock Server
+# AI Flex Server
 
-A web-based marketplace for discovering and interacting with PStock agents.
+A web-based marketplace for discovering and interacting with AI Flex agents.
 
 ## Features
 
@@ -12,7 +12,7 @@ A web-based marketplace for discovering and interacting with PStock agents.
 
 ## Installation
 
-The server is included in the PStock SDK. Install dependencies:
+The server is included in the AI Flex SDK. Install dependencies:
 
 ```bash
 uv sync

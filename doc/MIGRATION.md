@@ -1,6 +1,6 @@
 # TypeScript → Python 迁移指南
 
-本文档说明如何将 TypeScript PStock SDK 代码迁移到 Python 版本。
+本文档说明如何将 TypeScript AI Flex SDK 代码迁移到 Python 版本。
 
 ## 核心映射关系
 

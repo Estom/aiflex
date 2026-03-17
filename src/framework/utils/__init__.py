@@ -1,5 +1,5 @@
 """
-PStock Framework - 工具模块
+AI Flex Framework - 工具模块
 
 导出所有工具函数。
 """

@@ -1,5 +1,5 @@
 """
-PStock Framework - 自定义异常
+AI Flex Framework - 自定义异常
 
 定义框架中使用的异常层次。
 """

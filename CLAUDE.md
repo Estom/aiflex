@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PStock is a Python-based AI Agent framework designed for financial analysis and stock trading scenarios. It implements a ReAct-style agent runtime with tool calling, MCP integration, knowledge base retrieval, memory management, and a skills system.
+AI Flex is a Python-based AI Agent framework designed for financial analysis and stock trading scenarios. It implements a ReAct-style agent runtime with tool calling, MCP integration, knowledge base retrieval, memory management, and a skills system.
 
 The codebase consists of two main packages:
 - **sdk**: Core agent runtime with programmatic API

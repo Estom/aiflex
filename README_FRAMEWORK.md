@@ -1,8 +1,8 @@
-# 🎉 PStock Framework智能体框架 - 运行成功！
+# 🎉 AI Flex Framework智能体框架 - 运行成功！
 
 ## ✅ 当前状态
 
-您的 **PStock 智能体框架**已经成功实现并运行！
+您的 **AI Flex 智能体框架**已经成功实现并运行！
 
 ### 📦 已完成的组件
 
@@ -82,7 +82,7 @@ python run_agent.py "分析任务" --real-llm
 ## 📁 项目结构
 
 ```
-pstock/
+aiflex/
 ├── src/
 │   ├── framework/     # ✨ 声明式框架
 │   └── sdk/          # 🛠️ SDK 核心
@@ -276,10 +276,10 @@ python run_agent.py "研究当前的半导体行业趋势，包括：
 
 ---
 
-*PStock Framework v0.1.0* | *Generated 2026-02-02*
+*AI Flex Framework v0.1.0* | *Generated 2026-02-02*
 
 
-This directory contains declarative agent configurations for the PStock system.
+This directory contains declarative agent configurations for the AI Flex system.
 
 ## Agent Structure
 
@@ -548,6 +548,6 @@ print(result)
 
 ## Further Reading
 
-- [PStock SDK Documentation](../src/sdk/README.md)
+- [AI Flex SDK Documentation](../src/sdk/README.md)
 - [Framework Summary](../FRAMEWORK_SUMMARY.md)
 - [Claude Skills Specification](https://docs.anthropic.com/claude/docs/skills-for-claude)

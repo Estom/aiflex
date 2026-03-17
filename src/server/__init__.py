@@ -1,8 +1,8 @@
 """
-PStock Server - Agent Marketplace
+AI Flex Server - Agent Marketplace
 
 This package provides a web-based marketplace for discovering and interacting
-with PStock agents.
+with AI Flex agents.
 
 Example usage:
     from sdk.agent.core.agent import AgentBuilder

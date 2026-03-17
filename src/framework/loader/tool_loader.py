@@ -1,5 +1,5 @@
 """
-PStock Framework - Tool 加载器
+AI Flex Framework - Tool 加载器
 
 负责自动发现和加载工具模块。
 """

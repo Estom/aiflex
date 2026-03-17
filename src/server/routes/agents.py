@@ -1,5 +1,5 @@
 """
-PStock Server - Agent Management Routes
+AI Flex Server - Agent Management Routes
 
 This module provides API endpoints for agent listing and details.
 """

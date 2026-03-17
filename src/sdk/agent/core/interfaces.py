@@ -1,5 +1,5 @@
 """
-PStock SDK - 核心接口定义
+AI Flex SDK - 核心接口定义
 
 本模块定义了 Agent、Tool、LLM 等核心接口。
 """

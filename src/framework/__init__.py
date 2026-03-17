@@ -1,5 +1,5 @@
 """
-PStock Framework - 声明式 Agent 框架
+AI Flex Framework - 声明式 Agent 框架
 
 一个基于 JSON 配置文件的声明式 Agent 框架，支持：
 - 声明式 agent.json 配置

@@ -1,5 +1,5 @@
 """
-PStock Framework - JSON 验证工具
+AI Flex Framework - JSON 验证工具
 
 提供 JSON 验证相关的工具函数。
 """

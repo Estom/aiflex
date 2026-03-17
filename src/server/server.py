@@ -1,5 +1,5 @@
 """
-PStock Server - Agent Server
+AI Flex Server - Agent Server
 
 This module provides the AgentServer class that supports multiple execution modes:
 - Web mode: Start the FastAPI web server for the agent marketplace
@@ -65,8 +65,8 @@ def create_app() -> FastAPI:
         FastAPI: The configured application
     """
     app = FastAPI(
-        title="PStock Agent Marketplace",
-        description="A web marketplace for discovering and interacting with PStock agents",
+        title="AI Flex Agent Marketplace",
+        description="A web marketplace for discovering and interacting with AI Flex agents",
         version="0.1.0",
     )
 
@@ -95,7 +95,7 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check() -> dict[str, Any]:
         """Health check endpoint"""
-        return {"status": "healthy", "service": "pstock-server"}
+        return {"status": "healthy", "service": "aiflex-server"}
 
     return app
 
@@ -123,7 +123,7 @@ class AgentServer:
     def _create_parser(self) -> argparse.ArgumentParser:
         """Create CLI argument parser"""
         parser = argparse.ArgumentParser(
-            description="PStock Agent Server - Run agents in different modes",
+            description="AI Flex Agent Server - Run agents in different modes",
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
@@ -353,9 +353,9 @@ Examples:
         import uvicorn
 
         app = create_app()
-        logger.info(f"Starting PStock Web Server on {host}:{port}")
+        logger.info(f"Starting AI Flex Web Server on {host}:{port}")
         print(f"\n{'=' * 60}")
-        print("PStock Agent Marketplace")
+        print("AI Flex Agent Marketplace")
         print(f"{'=' * 60}")
         print(f"Web UI: http://localhost:{port}")
         print(f"API Docs: http://localhost:{port}/docs")
@@ -396,7 +396,7 @@ Examples:
 # Convenience functions for backward compatibility
 def start_server(host: str = "0.0.0.0", port: int = 8000, log_level: str = "info") -> None:
     """
-    Start the PStock web server (backward compatibility function)
+    Start the AI Flex web server (backward compatibility function)
 
     Args:
         host: Host to bind to
@@ -406,7 +406,7 @@ def start_server(host: str = "0.0.0.0", port: int = 8000, log_level: str = "info
     import uvicorn
 
     app = create_app()
-    logger.info(f"Starting PStock Server on {host}:{port}")
+    logger.info(f"Starting AI Flex Server on {host}:{port}")
     uvicorn.run(app, host=host, port=port, log_level=log_level)
 
 

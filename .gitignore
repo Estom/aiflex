@@ -52,7 +52,7 @@ dmypy.json
 .ruff_cache/
 
 # Frontend
-src/pstock_server/frontend/node_modules/
+src/server/frontend/node_modules/
 src/pstock_server/frontend/dist/
 src/pstock_server/frontend/.vite/
 

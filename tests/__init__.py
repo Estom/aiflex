@@ -1,1 +1,1 @@
-"""Tests for PStock SDK"""
+"""Tests for AI Flex SDK"""

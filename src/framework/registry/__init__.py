@@ -1,5 +1,5 @@
 """
-PStock Framework - 注册表模块
+AI Flex Framework - 注册表模块
 
 导出注册表类。
 """

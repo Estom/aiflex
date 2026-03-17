@@ -1,5 +1,5 @@
 """
-PStock Framework - Skill 加载器
+AI Flex Framework - Skill 加载器
 
 负责解析 SKILL.md 文件。
 """

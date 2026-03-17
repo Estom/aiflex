@@ -1,5 +1,5 @@
 """
-PStock Server - Chat Routes
+AI Flex Server - Chat Routes
 
 This module provides API endpoints for agent chat functionality.
 """

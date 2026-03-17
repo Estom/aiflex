@@ -1,5 +1,5 @@
 """
-PStock Framework - 路径工具
+AI Flex Framework - 路径工具
 
 提供路径处理相关的工具函数。
 """

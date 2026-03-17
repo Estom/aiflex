@@ -1,4 +1,4 @@
-# 📁 PStock 项目文件清单
+# 📁 AI Flex 项目文件清单
 
 ## 🎯 核心框架文件
 
@@ -104,7 +104,7 @@ pyproject.toml                      # ✏️ 添加 framework 到构建配置
 ### 1. 声明式配置
 - ✅ JSON 格式的 agent.json
 - ✅ 完整的 Pydantic 验证
-- ✅ 支持所有 PStock SDK 特性
+- ✅ 支持所有 AI Flex SDK 特性
 
 ### 2. 工具系统
 - ✅ 自动发现 tools/*.py
