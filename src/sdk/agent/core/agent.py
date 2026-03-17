@@ -15,8 +15,8 @@ from typing import Any
 
 from loguru import logger
 
-from pstock_sdk.agent.tools.mcp_adapter_tool import McpAdapterTool
-from pstock_sdk.agent.tools.skill_adapter_tool import SkillAdapterTool
+from sdk.agent.tools.mcp_adapter_tool import McpAdapterTool
+from sdk.agent.tools.skill_adapter_tool import SkillAdapterTool
 
 from ...integration.ragflow_client import RagFlowClient
 from ..mcp.mcp_client import McpClient

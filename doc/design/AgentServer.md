@@ -1,4 +1,4 @@
-设计并实现一个智能体服务市场模块pstock_server。该模块具有以下功能：
+设计并实现一个智能体服务市场模块server。该模块具有以下功能：
 1. 我已经有一个通过编程的方式创建好的智能体。我能在代码中import这个模块，并且调用注册智能体的python接口，将智能体注册到智能体服务市场中。
 2. 我可以调用智能体服务市场启动的python接口，此时智能体服务模块会启动一个web服务。
 3. Web服务用于展示和使用智能体。web服务会以卡片的形式展示已经注册的智能体列表，卡片上展示智能体的名称、描述等你认为关键的信息。
@@ -6,9 +6,9 @@
 
 
 
-优化一下pstock_server。在server.py中创建一个AgentServer类，该类创建的时候接收并绑定一个Registry对象，并对外提供一个run()方法。run()方法会根据命令行参数，启动不同的模式。如果命令参数中有--interactive（-i），则启动交互式执行，如果有--web (-w)，则启动web服务。如果有--prompt  (-p)，则启动非交互式执行，--prompt后的参数即位用户的问题，并返回结果。
+优化一下server。在server.py中创建一个AgentServer类，该类创建的时候接收并绑定一个Registry对象，并对外提供一个run()方法。run()方法会根据命令行参数，启动不同的模式。如果命令参数中有--interactive（-i），则启动交互式执行，如果有--web (-w)，则启动web服务。如果有--prompt  (-p)，则启动非交互式执行，--prompt后的参数即位用户的问题，并返回结果。
 
-给pstock_server模块增加命令行交互式执行agent的能力。我可以在智能体的agent.py中以命令行交互的方式运行agent。然后与agent的对话交流。
+给server模块增加命令行交互式执行agent的能力。我可以在智能体的agent.py中以命令行交互的方式运行agent。然后与agent的对话交流。
 ```python
 agent = Agent()
 agent_server = AgentServer(registry:AgentRegistry)

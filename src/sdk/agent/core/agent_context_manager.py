@@ -42,7 +42,7 @@ class AgentContextManager:
     - 在后续的上下文构建时，会舍弃掉该条历史记录之前的所有记录
 
     Example:
-        from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+        from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
 
         llm = OpenAILLM(api_key="sk-xxx", options=OpenAIModelOptions())
         manager = AgentContextManager(

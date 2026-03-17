@@ -27,10 +27,10 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from pstock_sdk.agent.core.agent import Agent, AgentBuilder
-from pstock_sdk.agent.core.interfaces import AgentContext, Tool, ToolDefinition
-from pstock_sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
-from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+from sdk.agent.core.agent import Agent, AgentBuilder
+from sdk.agent.core.interfaces import AgentContext, Tool, ToolDefinition
+from sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
+from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
 
 load_dotenv()
 

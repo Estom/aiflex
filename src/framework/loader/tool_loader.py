@@ -216,7 +216,7 @@ class ToolLoader:
         Returns:
             工具实例
         """
-        from pstock_sdk.agent.tools.base_tool import BaseTool
+        from sdk.agent.tools.base_tool import BaseTool
 
         func_name = func.__name__
         func_doc = inspect.getdoc(func) or f"Tool generated from function {func_name}"

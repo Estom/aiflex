@@ -2,12 +2,12 @@
 
 ## Overview
 
-Successfully implemented the `pstock_framework` declarative agent framework as a parallel package to `pstock_sdk`. The framework enables loading agents from JSON configuration files with automatic discovery of tools, skills, and subagents.
+Successfully implemented the `framework` declarative agent framework as a parallel package to `sdk`. The framework enables loading agents from JSON configuration files with automatic discovery of tools, skills, and subagents.
 
 ## Package Structure
 
 ```
-src/pstock_framework/
+src/framework/
 ├── __init__.py                      # Main entry point with AgentFrameworkLoader
 ├── exceptions.py                    # Custom exception hierarchy
 ├── config/
@@ -68,8 +68,8 @@ src/pstock_framework/
 ## API Usage
 
 ```python
-from pstock_framework import AgentFrameworkLoader
-from pstock_sdk import OpenAILLM
+from framework import AgentFrameworkLoader
+from sdk import OpenAILLM
 
 # Initialize
 llm = OpenAILLM(api_key="sk-...", options={"model": "gpt-4"})
@@ -93,7 +93,7 @@ for name in loader.list_agents():
 - Fixed `ChatCompletionTool` import error in `openai_llm.py`
 - Changed to `ChatCompletionToolUnionParam`
 
-### 2. pstock_sdk Export Issues
+### 2. sdk Export Issues
 - Removed non-existent `MemoryStore` from `__init__.py`
 
 ### 3. AgentAdapterTool Property Issues
@@ -150,7 +150,7 @@ agents/
 
 ```toml
 [tool.hatch.build.targets.wheel]
-packages = ["src/pstock_sdk", "src/pstock_framework"]
+packages = ["src/sdk", "src/framework"]
 ```
 
 Both packages are built and installed together.
@@ -160,7 +160,7 @@ Both packages are built and installed together.
 1. **Add real API credentials** for testing with actual LLMs
 2. **Implement real stock data fetching** in tools/stock_data.py
 3. **Add more agents** to agents/ directory
-4. **Create comprehensive tests** in tests/pstock_framework/
+4. **Create comprehensive tests** in tests/framework/
 5. **Add documentation** for creating custom agents
 
 ## Design Decisions
@@ -177,18 +177,18 @@ Both packages are built and installed together.
 ## Files Modified/Created
 
 ### Created (Framework)
-- `src/pstock_framework/__init__.py`
-- `src/pstock_framework/exceptions.py`
-- `src/pstock_framework/config/*.py`
-- `src/pstock_framework/loader/*.py`
-- `src/pstock_framework/registry/*.py`
-- `src/pstock_framework/utils/*.py`
+- `src/framework/__init__.py`
+- `src/framework/exceptions.py`
+- `src/framework/config/*.py`
+- `src/framework/loader/*.py`
+- `src/framework/registry/*.py`
+- `src/framework/utils/*.py`
 
 ### Modified (Bug Fixes)
-- `src/pstock_sdk/agent/llm/openai_llm.py` (ChatCompletionTool fix)
-- `src/pstock_sdk/__init__.py` (MemoryStore export fix)
-- `src/pstock_sdk/agent/core/agent.py` (AgentDescriptor fix)
-- `src/pstock_sdk/agent/tools/agent_adapter_tool.py` (property fix)
+- `src/sdk/agent/llm/openai_llm.py` (ChatCompletionTool fix)
+- `src/sdk/__init__.py` (MemoryStore export fix)
+- `src/sdk/agent/core/agent.py` (AgentDescriptor fix)
+- `src/sdk/agent/tools/agent_adapter_tool.py` (property fix)
 
 ### Created (Example Agent)
 - `agents/financial_analyst/agent.json`
@@ -202,4 +202,4 @@ Both packages are built and installed together.
 
 ## Conclusion
 
-The pstock_framework is fully functional and ready for use. It provides a clean, declarative way to define agents using JSON configuration files, with automatic discovery and loading of tools, skills, and subagents. The framework integrates seamlessly with the existing pstock_sdk and follows all the design decisions outlined in the original plan.
+The framework is fully functional and ready for use. It provides a clean, declarative way to define agents using JSON configuration files, with automatic discovery and loading of tools, skills, and subagents. The framework integrates seamlessly with the existing sdk and follows all the design decisions outlined in the original plan.

@@ -2,9 +2,9 @@
 
 ## 🎯 核心框架文件
 
-### pstock_framework 包
+### framework 包
 ```
-src/pstock_framework/
+src/framework/
 ├── __init__.py                     # 主入口，导出 AgentFrameworkLoader
 ├── exceptions.py                   # 自定义异常层次结构
 ├── config/
@@ -26,9 +26,9 @@ src/pstock_framework/
     └── validators.py              # JSON 验证
 ```
 
-### pstock_sdk 修改
+### sdk 修改
 ```
-src/pstock_sdk/
+src/sdk/
 ├── __init__.py                    # ✏️ 修复导出列表
 ├── agent/
 │   ├── core/
@@ -80,7 +80,7 @@ agents/README.md                   # 智能体创建指南
 ## 🔧 配置文件
 
 ```
-pyproject.toml                      # ✏️ 添加 pstock_framework 到构建配置
+pyproject.toml                      # ✏️ 添加 framework 到构建配置
 ```
 
 ## 📊 文件统计

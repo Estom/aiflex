@@ -91,7 +91,7 @@
 每个智能体通过 `AgentBuilder` 编程式构建，提供流畅的链式 API：
 
 ```python
-from pstock_sdk import AgentBuilder, OpenAILLM
+from sdk import AgentBuilder, OpenAILLM
 
 # 初始化 LLM
 llm = OpenAILLM(api_key="sk-xxx", options={"model": "gpt-4o"})
@@ -157,7 +157,7 @@ def _load_instructions() -> str:
 # subagents/data_fetcher/agent.py
 
 from pathlib import Path
-from pstock_sdk import Agent, AgentBuilder, LLM
+from sdk import Agent, AgentBuilder, LLM
 from .tools import (
     stock_price_tool,
     financial_data_tool,
@@ -240,7 +240,7 @@ def _load_instructions() -> str:
 # subagents/analyzer/agent.py
 
 from pathlib import Path
-from pstock_sdk import Agent, AgentBuilder, LLM
+from sdk import Agent, AgentBuilder, LLM
 from .tools import indicators_tool
 
 
@@ -298,7 +298,7 @@ def create(llm: LLM) -> Agent:
 # subagents/strategy_generator/agent.py
 
 from pathlib import Path
-from pstock_sdk import Agent, AgentBuilder, LLM
+from sdk import Agent, AgentBuilder, LLM
 from .tools import (
     get_positions_tool,
     risk_check_tool,
@@ -358,7 +358,7 @@ def create(llm: LLM) -> Agent:
 # subagents/reporter/agent.py
 
 from pathlib import Path
-from pstock_sdk import Agent, AgentBuilder, LLM
+from sdk import Agent, AgentBuilder, LLM
 from .tools import format_tool
 
 
@@ -557,7 +557,7 @@ def create(llm: LLM) -> Agent:
 ### 5.1 完整目录结构
 
 ```
-src/pstock_agent/stock_trader/
+src/agent/stock_trader/
 ├── __init__.py                     # 包入口，导出 create_stock_trader()
 ├── agent.py                        # 主智能体定义
 ├── prompt.md                       # 主智能体系统提示
@@ -632,10 +632,10 @@ src/pstock_agent/stock_trader/
 ### 5.2 主智能体完整实现
 
 ```python
-# src/pstock_agent/stock_trader/agent.py
+# src/agent/stock_trader/agent.py
 
 from pathlib import Path
-from pstock_sdk import Agent, AgentBuilder, LLM
+from sdk import Agent, AgentBuilder, LLM
 
 from .subagents.data_fetcher import create as create_data_fetcher
 from .subagents.analyzer import create as create_analyzer
@@ -753,7 +753,7 @@ def _load_instructions() -> str:
 name = "pstock-agent"
 version = "0.1.0"
 dependencies = [
-    "pstock-sdk = { path = ../pstock_sdk }",
+    "pstock-sdk = { path = ../sdk }",
 ]
 
 [tool.uv.dependencies]
@@ -771,8 +771,8 @@ pandas = ">=2.0.0"
 
 ```python
 import asyncio
-from pstock_sdk import OpenAILLM
-from pstock_agent.stock_trader import create_stock_trader
+from sdk import OpenAILLM
+from agent.stock_trader import create_stock_trader
 
 
 async def main():
@@ -799,11 +799,11 @@ if __name__ == "__main__":
 ### 6.2 命令行入口
 
 ```python
-# src/pstock_agent/stock_trader/__main__.py
+# src/agent/stock_trader/__main__.py
 
 import asyncio
 import sys
-from pstock_sdk import OpenAILLM
+from sdk import OpenAILLM
 from . import create_stock_trader
 
 
@@ -825,14 +825,14 @@ if __name__ == "__main__":
 ### 6.3 包入口模块
 
 ```python
-# src/pstock_agent/stock_trader/__init__.py
+# src/agent/stock_trader/__init__.py
 from .agent import create as create_stock_trader
 
 __all__ = ["create_stock_trader"]
 ```
 
 ```python
-# src/pstock_agent/__init__.py
+# src/agent/__init__.py
 from .stock_trader import create_stock_trader
 
 __all__ = ["create_stock_trader"]
@@ -842,10 +842,10 @@ __all__ = ["create_stock_trader"]
 
 ```bash
 # 直接运行
-python -m pstock_agent.stock_trader "分析 AAPL"
+python -m agent.stock_trader "分析 AAPL"
 
 # 交互模式 (可选扩展)
-python -m pstock_agent.stock_trader --interactive
+python -m agent.stock_trader --interactive
 ```
 
 ### 6.5 输出报告示例
@@ -922,7 +922,7 @@ python -m pstock_agent.stock_trader --interactive
 
 ### B. 参考资料
 
-- [PStock SDK Documentation](../src/pstock_sdk/README.md)
+- [PStock SDK Documentation](../src/sdk/README.md)
 - [Claude Skills Specification](https://docs.anthropic.com/claude/docs/skills-for-claude)
 - [TA-Lib Documentation](https://ta-lib.org/)
 - [yfinance Documentation](https://github.com/ranaroussi/yfinance)

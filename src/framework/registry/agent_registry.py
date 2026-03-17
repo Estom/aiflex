@@ -7,7 +7,7 @@ PStock Framework - Agent 注册表
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from pstock_sdk.agent.core.agent import Agent
+    from sdk.agent.core.agent import Agent
 
 
 class AgentFrameworkRegistry:

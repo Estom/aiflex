@@ -5,9 +5,9 @@ This package provides a web-based marketplace for discovering and interacting
 with PStock agents.
 
 Example usage:
-    from pstock_sdk.agent.core.agent import AgentBuilder
-    from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
-    from pstock_server import registry, AgentServer
+    from sdk.agent.core.agent import AgentBuilder
+    from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+    from server import registry, AgentServer
 
     # Create LLM
     llm = OpenAILLM(api_key="...", options=OpenAIModelOptions(model="gpt-4o-mini"))

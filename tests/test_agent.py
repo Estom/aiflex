@@ -4,11 +4,11 @@
 
 import pytest
 
-from pstock_sdk.agent.core.interfaces import AgentContext, AgentStep
-from pstock_sdk.agent.core.agent import Agent, AgentBuilder, AgentOptions
-from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
-from pstock_sdk.agent.tools.tool_registry import ToolRegistry
-from pstock_sdk.utils.agent_step import build_agent_step
+from sdk.agent.core.interfaces import AgentContext, AgentStep
+from sdk.agent.core.agent import Agent, AgentBuilder, AgentOptions
+from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+from sdk.agent.tools.tool_registry import ToolRegistry
+from sdk.utils.agent_step import build_agent_step
 
 
 class MockLLM:

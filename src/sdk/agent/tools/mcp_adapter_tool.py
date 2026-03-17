@@ -6,11 +6,11 @@ MCP Adapter Tool - MCP 适配器工具
 
 from typing import Any
 
-from pstock_sdk.agent.core.interfaces import AgentContext
-from pstock_sdk.agent.mcp.mcp_client import McpClient, McpToolDefinition
-from pstock_sdk.agent.mcp.mcp_config import McpServerConfig
-from pstock_sdk.agent.tools.base_tool import BaseTool
-from pstock_sdk.utils.logger import logger
+from sdk.agent.core.interfaces import AgentContext
+from sdk.agent.mcp.mcp_client import McpClient, McpToolDefinition
+from sdk.agent.mcp.mcp_config import McpServerConfig
+from sdk.agent.tools.base_tool import BaseTool
+from sdk.utils.logger import logger
 
 
 class McpAdapterTool(BaseTool):

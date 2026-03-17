@@ -25,7 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from pstock_sdk.agent.core.interfaces import AgentContext, ChatMessage
+from sdk.agent.core.interfaces import AgentContext, ChatMessage
 
 from .registry import AgentRegistry
 from .routes import agents, chat
@@ -90,7 +90,7 @@ def create_app() -> FastAPI:
         logger.info(f"Frontend static files mounted from {frontend_dist}")
     else:
         logger.warning(f"Frontend dist directory not found at {frontend_dist}")
-        logger.warning("Run 'cd src/pstock_server/frontend && npm run build' to build the frontend")
+        logger.warning("Run 'cd src/server/frontend && npm run build' to build the frontend")
 
     @app.get("/health")
     async def health_check() -> dict[str, Any]:
@@ -128,16 +128,16 @@ class AgentServer:
             epilog="""
 Examples:
   # Start web server (default)
-  python -m pstock_server --web
+  python -m server --web
 
   # Interactive mode
-  python -m pstock_server --interactive
+  python -m server --interactive
 
   # One-shot prompt mode
-  python -m pstock_server --prompt "What is the weather today?"
+  python -m server --prompt "What is the weather today?"
 
   # Specify agent by name
-  python -m pstock_server --interactive --agent my-agent
+  python -m server --interactive --agent my-agent
             """,
         )
 

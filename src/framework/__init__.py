@@ -10,8 +10,8 @@ PStock Framework - 声明式 Agent 框架
 
 基本用法：
 ```python
-from pstock_framework import AgentFrameworkLoader
-from pstock_sdk import OpenAILLM
+from framework import AgentFrameworkLoader
+from sdk import OpenAILLM
 
 # 初始化
 llm = OpenAILLM(api_key="sk-...", options={"model": "gpt-4"})
@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any
 from loguru import logger
 
 if TYPE_CHECKING:
-    from pstock_sdk.agent.core.agent import Agent
+    from sdk.agent.core.agent import Agent
 
 from .config import (
     AgentConfig,

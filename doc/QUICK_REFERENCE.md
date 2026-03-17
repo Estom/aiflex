@@ -36,7 +36,7 @@ python test_framework.py
 ./demo.sh
 
 # 验证安装
-python -c "from pstock_framework import AgentFrameworkLoader; print('✓ OK')"
+python -c "from framework import AgentFrameworkLoader; print('✓ OK')"
 ```
 
 ### 配置管理
@@ -78,7 +78,7 @@ python run_agent.py "如何降低投资风险？"
 
 ```
 pstock/
-├── src/pstock_framework/      # 框架代码
+├── src/framework/      # 框架代码
 ├── agents/                     # 智能体目录
 │   └── financial_analyst/     # 金融分析师
 │       ├── agent.json         # 配置文件
@@ -149,7 +149,7 @@ cat > agents/code_helper/agent.json << EOF
 EOF
 
 cat > agents/code_helper/tools/review.py << EOF
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.tools.base_tool import BaseTool
 
 class ReviewTool(BaseTool):
     name = "review"
@@ -229,7 +229,7 @@ OPENAI_MODEL=gpt-4o-mini  # 比 gpt-4 快且便宜
 
 ### 流式输出
 ```python
-from pstock_framework import AgentFrameworkLoader
+from framework import AgentFrameworkLoader
 
 loader = AgentFrameworkLoader(agents_root="agents/", default_llm=llm)
 await loader.load_all()
@@ -245,7 +245,7 @@ result = await agent.run_stream(
 
 ### 自定义工具
 ```python
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.tools.base_tool import BaseTool
 
 class MyTool(BaseTool):
     name = "my_tool"

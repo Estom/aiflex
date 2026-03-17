@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 PStock is a Python-based AI Agent framework designed for financial analysis and stock trading scenarios. It implements a ReAct-style agent runtime with tool calling, MCP integration, knowledge base retrieval, memory management, and a skills system.
 
 The codebase consists of two main packages:
-- **pstock_sdk**: Core agent runtime with programmatic API
-- **pstock_framework**: Declarative framework using JSON configuration files
+- **sdk**: Core agent runtime with programmatic API
+- **framework**: Declarative framework using JSON configuration files
 
 ## Common Commands
 
@@ -54,7 +54,7 @@ uv run pytest
 uv run pytest tests/test_agent.py
 
 # With coverage
-uv run pytest --cov=pstock_sdk --cov-report=html
+uv run pytest --cov=sdk --cov-report=html
 ```
 
 ### Building
@@ -69,7 +69,7 @@ uv build
 
 ```
 src/
-├── pstock_sdk/              # Core SDK
+├── sdk/              # Core SDK
 │   ├── agent/
 │   │   ├── core/
 │   │   │   ├── agent.py         # Agent class and Builder
@@ -81,20 +81,20 @@ src/
 │   ├── stores/                  # Data storage layer
 │   ├── integration/             # RagFlow integration
 │   └── utils/                   # Utilities
-├── pstock_framework/            # Declarative framework
+├── framework/            # Declarative framework
 │   ├── config/                  # Pydantic config models
 │   ├── loader/                  # Config loaders
 │   └── registry/                # Agent registry
 ├── agents/                      # Agent definitions
 │   └── financial_analyst/       # Example agent
-└── pstock_server/               # Server component (in development)
+└── server/               # Server component (in development)
 ```
 
 ### Core Concepts
 
-**ReAct Runtime** (`src/pstock_sdk/agent/core/agent_runtime.py`): Implements the thought-action-observation loop using OpenAI function calling. The runtime cycles through reasoning steps until completion or max steps.
+**ReAct Runtime** (`src/sdk/agent/core/agent_runtime.py`): Implements the thought-action-observation loop using OpenAI function calling. The runtime cycles through reasoning steps until completion or max steps.
 
-**Agent Builder Pattern** (`src/pstock_sdk/agent/core/agent.py`): Use `AgentBuilder()` to construct agents programmatically:
+**Agent Builder Pattern** (`src/sdk/agent/core/agent.py`): Use `AgentBuilder()` to construct agents programmatically:
 
 ```python
 agent = (AgentBuilder()
@@ -105,9 +105,9 @@ agent = (AgentBuilder()
     .build())
 ```
 
-**Declarative Configuration** (`src/pstock_framework/`): Agents can be defined using `agent.json` files with automatic discovery of tools, skills, and subagents.
+**Declarative Configuration** (`src/framework/`): Agents can be defined using `agent.json` files with automatic discovery of tools, skills, and subagents.
 
-**Tool Protocol** (`src/pstock_sdk/agent/core/interfaces.py`): Tools must implement the `Tool` protocol with `name`, `description`, `input_schema`, and `execute()` method.
+**Tool Protocol** (`src/sdk/agent/core/interfaces.py`): Tools must implement the `Tool` protocol with `name`, `description`, `input_schema`, and `execute()` method.
 
 **Claude Skills** (`src/agents/*/skills/`): Skills are defined in `SKILL.md` files with YAML frontmatter containing metadata (name, description, allowed_tools).
 
@@ -115,7 +115,7 @@ agent = (AgentBuilder()
 
 ### Key Data Flow
 
-1. **Agent Loading** (`pstock_framework`): Scans `agents/` directories, parses `agent.json`, loads prompts, discovers tools/skills/subagents
+1. **Agent Loading** (`framework`): Scans `agents/` directories, parses `agent.json`, loads prompts, discovers tools/skills/subagents
 2. **Tool Registration**: Tools are registered in `ToolRegistry` and converted to OpenAI function schemas
 3. **Execution**: `AgentRuntime` runs the ReAct loop, calling tools via function calling
 4. **Memory/Experience**: Results can be stored in `ExperienceStore` for future retrieval

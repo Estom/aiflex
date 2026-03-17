@@ -2,7 +2,7 @@
 
 # ⭐ 声明式 Agent 框架 — 详细设计
 
-新增一个与pstock_sdk并列的包pstock_framework,实现这个设计。
+新增一个与sdk并列的包framework,实现这个设计。
 
 
 ---

@@ -47,7 +47,7 @@ python run_agent.py "分析苹果公司股票" --real-llm
 
 ```python
 def create_real_llm():
-    from pstock_sdk import OpenAILLM
+    from sdk import OpenAILLM
 
     return OpenAILLM(
         api_key="sk-your-api-key-here",
@@ -154,7 +154,7 @@ EOF
 
 # 创建工具
 cat > tools/code_review.py << 'EOF'
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.tools.base_tool import BaseTool
 
 class CodeReviewTool(BaseTool):
     name = "code_review"
@@ -270,7 +270,7 @@ python run_agent.py "评估投资NVDA的风险和收益"
 
 - [框架实现总结](FRAMEWORK_SUMMARY.md)
 - [智能体创建指南](agents/README.md)
-- [PStock SDK 文档](src/pstock_sdk/README.md)
+- [PStock SDK 文档](src/sdk/README.md)
 
 ## 🆘 故障排除
 

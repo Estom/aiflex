@@ -1,7 +1,7 @@
 """
 Agent 集成测试
 
-测试 pstock_sdk Agent 的完整功能，包括：
+测试 sdk Agent 的完整功能，包括：
 - ReAct 框架
 - 工具调用
 - 上下文管理（压缩、截断）
@@ -16,10 +16,10 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, Mock
 from typing import Any
 
-from pstock_sdk.agent.core.agent import Agent, AgentBuilder, AgentOptions
-from pstock_sdk.agent.core.agent_context_manager import AgentContextManager
-from pstock_sdk.agent.core.agent_runtime import AgentRuntime, AgentRuntimeConfig
-from pstock_sdk.agent.core.interfaces import (
+from sdk.agent.core.agent import Agent, AgentBuilder, AgentOptions
+from sdk.agent.core.agent_context_manager import AgentContextManager
+from sdk.agent.core.agent_runtime import AgentRuntime, AgentRuntimeConfig
+from sdk.agent.core.interfaces import (
     AgentContext,
     AgentRunResult,
     AgentStep,
@@ -29,8 +29,8 @@ from pstock_sdk.agent.core.interfaces import (
     Tool,
     ToolDefinition,
 )
-from pstock_sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
-from pstock_sdk.agent.memory.compressor import ContextCompressor
+from sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
+from sdk.agent.memory.compressor import ContextCompressor
 
 
 # =============================================================================
@@ -1020,7 +1020,7 @@ class TestMemoryGeneratorIntegration:
     @pytest.mark.asyncio
     async def test_memory_generator_llm_required(self, memory_slots):
         """测试记忆生成器需要 LLM"""
-        from pstock_sdk.agent.memory.memory import MemoryGenerator
+        from sdk.agent.memory.memory import MemoryGenerator
 
         # 没有 LLM 时应该返回空列表
         generator = MemoryGenerator(
@@ -1037,7 +1037,7 @@ class TestMemoryGeneratorIntegration:
     @pytest.mark.asyncio
     async def test_memory_generator_with_llm(self, memory_slots):
         """测试有 LLM 时的记忆生成"""
-        from pstock_sdk.agent.memory.memory import MemoryGenerator
+        from sdk.agent.memory.memory import MemoryGenerator
 
         class TestLLM:
             async def chat(self, messages, tools=None):

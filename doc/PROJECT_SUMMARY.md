@@ -3,8 +3,8 @@
 ## 已创建的文件结构
 
 ```
-pstock_sdk_py/
-├── src/pstock_sdk/              # SDK 源代码
+sdk_py/
+├── src/sdk/              # SDK 源代码
 │   ├── __init__.py              # 主入口
 │   ├── cli.py                   # 命令行工具
 │   ├── agent/                   # Agent 核心模块

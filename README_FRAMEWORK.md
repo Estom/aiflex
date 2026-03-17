@@ -6,7 +6,7 @@
 
 ### 📦 已完成的组件
 
-✅ **pstock_framework** - 声明式智能体框架
+✅ **framework** - 声明式智能体框架
 ✅ **工具系统** - 自动发现和加载
 ✅ **技能系统** - Claude Skills 支持
 ✅ **子智能体** - 递归加载和协作
@@ -84,8 +84,8 @@ python run_agent.py "分析任务" --real-llm
 ```
 pstock/
 ├── src/
-│   ├── pstock_framework/     # ✨ 声明式框架
-│   └── pstock_sdk/          # 🛠️ SDK 核心
+│   ├── framework/     # ✨ 声明式框架
+│   └── sdk/          # 🛠️ SDK 核心
 ```
 
 ## 🎨 创建自己的智能体
@@ -141,7 +141,7 @@ python run_agent.py "测试我的智能体"
 
 ```python
 # tools/my_tool.py
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.tools.base_tool import BaseTool
 
 class MyTool(BaseTool):
     name = "my_tool"
@@ -210,7 +210,7 @@ python run_agent.py "测试任务"
 - **[框架实现总结](FRAMEWORK_SUMMARY.md)** - 完整的技术实现细节
 - **[运行指南](AGENT_RUNNER_GUIDE.md)** - 详细的使用说明
 - **[智能体创建指南](agents/README.md)** - 如何创建新智能体
-- **[API 文档](src/pstock_sdk/README.md)** - SDK API 参考
+- **[API 文档](src/sdk/README.md)** - SDK API 参考
 
 ## 🎯 下一步
 
@@ -381,7 +381,7 @@ Tools are auto-discovered from `tools/*.py` files. They can be:
 
 1. **Tool Protocol implementation**:
 ```python
-from pstock_sdk.agent.core.interfaces import Tool
+from sdk.agent.core.interfaces import Tool
 
 class MyTool(Tool):
     @property
@@ -436,7 +436,7 @@ cd agents/my_agent
 ```bash
 mkdir tools
 cat > tools/my_tool.py << 'EOF'
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.tools.base_tool import BaseTool
 
 class MyTool(BaseTool):
     name = "my_tool"
@@ -467,8 +467,8 @@ EOF
 
 5. **Test the agent**:
 ```python
-from pstock_framework import AgentFrameworkLoader
-from pstock_sdk import OpenAILLM
+from framework import AgentFrameworkLoader
+from sdk import OpenAILLM
 
 llm = OpenAILLM(api_key="sk-...", options={"model": "gpt-4"})
 loader = AgentFrameworkLoader(agents_root="agents/", default_llm=llm)
@@ -548,6 +548,6 @@ print(result)
 
 ## Further Reading
 
-- [PStock SDK Documentation](../src/pstock_sdk/README.md)
+- [PStock SDK Documentation](../src/sdk/README.md)
 - [Framework Summary](../FRAMEWORK_SUMMARY.md)
 - [Claude Skills Specification](https://docs.anthropic.com/claude/docs/skills-for-claude)

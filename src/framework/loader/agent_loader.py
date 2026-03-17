@@ -23,8 +23,8 @@ from .subagent_loader import SubagentLoader
 from .tool_loader import ToolLoader
 
 if TYPE_CHECKING:
-    from pstock_sdk.agent.core.agent import Agent
-    from pstock_sdk.agent.core.interfaces import LLM, Skill, Tool
+    from sdk.agent.core.agent import Agent
+    from sdk.agent.core.interfaces import LLM, Skill, Tool
 
 
 class AgentLoader:
@@ -175,7 +175,7 @@ class AgentLoader:
         """
         # 如果配置了模型，创建新的 LLM
         if config.model:
-            from pstock_sdk import OpenAILLM
+            from sdk import OpenAILLM
 
             model = config.model.model or self.default_model or "gpt-4"
             api_key = config.model.api_key or self.default_api_key
@@ -294,7 +294,7 @@ class AgentLoader:
         Returns:
             Agent 实例
         """
-        from pstock_sdk import AgentBuilder
+        from sdk import AgentBuilder
 
         builder = (
             AgentBuilder()
@@ -320,7 +320,7 @@ class AgentLoader:
 
         # 如果有 Skill，注册 SkillAdapterTool
         if skills:
-            from pstock_sdk.agent.tools.skill_adapter_tool import SkillAdapterTool
+            from sdk.agent.tools.skill_adapter_tool import SkillAdapterTool
 
             skill_adapter = SkillAdapterTool(agent.skill_registry)
             agent._register_tool(skill_adapter)

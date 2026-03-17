@@ -16,28 +16,28 @@ PStock 完整功能智能体示例
 9. 流式输出 - 实时步骤展示
 """
 
-from pstock_sdk.agent.tools.todo_tool import TodoTool
-from pstock_sdk.agent.tools.search_text_tool import SearchTextTool
-from pstock_sdk.agent.tools.find_files_tool import FindFilesTool
-from pstock_sdk.agent.tools.shell_tool import ShellTool
-from pstock_sdk.agent.tools.edit_file_tool import EditFileTool
-from pstock_sdk.agent.tools.list_directory_tool import ListDirectoryTool
-from pstock_sdk.agent.tools.write_file_tool import WriteFileTool
-from pstock_sdk.agent.tools.read_file_tool import ReadFileTool
-from pstock_sdk.agent.tools.web_search_tool import WebSearchTool
+from sdk.agent.tools.todo_tool import TodoTool
+from sdk.agent.tools.search_text_tool import SearchTextTool
+from sdk.agent.tools.find_files_tool import FindFilesTool
+from sdk.agent.tools.shell_tool import ShellTool
+from sdk.agent.tools.edit_file_tool import EditFileTool
+from sdk.agent.tools.list_directory_tool import ListDirectoryTool
+from sdk.agent.tools.write_file_tool import WriteFileTool
+from sdk.agent.tools.read_file_tool import ReadFileTool
+from sdk.agent.tools.web_search_tool import WebSearchTool
 import asyncio
 import os
 from typing import Any
 
 from dotenv import load_dotenv
 
-from pstock_sdk.agent.core.agent import Agent, AgentBuilder
-from pstock_sdk.agent.core.interfaces import AgentContext, AgentStep, Skill, Tool, ToolDefinition
-from pstock_sdk.agent.mcp.mcp_config import McpServerConfig
-from pstock_sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
-from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
-from pstock_server import registry
-from pstock_server.server import AgentServer
+from sdk.agent.core.agent import Agent, AgentBuilder
+from sdk.agent.core.interfaces import AgentContext, AgentStep, Skill, Tool, ToolDefinition
+from sdk.agent.mcp.mcp_config import McpServerConfig
+from sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
+from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+from server import registry
+from server.server import AgentServer
 
 load_dotenv()
 

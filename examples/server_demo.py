@@ -27,9 +27,9 @@ Usage:
 import os
 from dotenv import load_dotenv
 
-from pstock_sdk.agent.core.agent import AgentBuilder
-from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
-from pstock_server import registry, AgentServer
+from sdk.agent.core.agent import AgentBuilder
+from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+from server import registry, AgentServer
 
 load_dotenv()
 

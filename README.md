@@ -55,7 +55,7 @@ python run_agent.py "简要分析苹果公司(AAPL)的当前状况"
 ```
 pstock/
 ├── src/
-│   ├── pstock_sdk/              # 核心 SDK
+│   ├── sdk/              # 核心 SDK
 │   │   ├── agent/
 │   │   │   ├── core/            # Agent 核心实现
 │   │   │   │   ├── agent.py     # Agent 类和 Builder
@@ -66,7 +66,7 @@ pstock/
 │   │   ├── stores/              # 数据存储层
 │   │   ├── integration/         # RagFlow 等集成
 │   │   └── utils/               # 工具函数
-│   └── pstock_framework/        # 声明式框架
+│   └── framework/        # 声明式框架
 │       ├── config/              # Pydantic 配置模型
 │       ├── loader/              # 配置加载器
 │       └── registry/            # Agent 注册中心
@@ -83,7 +83,7 @@ pstock/
 
 ```python
 import asyncio
-from pstock_sdk import AgentBuilder, OpenAILLM, OpenAIModelOptions
+from sdk import AgentBuilder, OpenAILLM, OpenAIModelOptions
 
 async def main():
     # 初始化 LLM
@@ -171,8 +171,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from pstock_framework import AgentFrameworkLoader
-from pstock_sdk import OpenAILLM, OpenAIModelOptions
+from framework import AgentFrameworkLoader
+from sdk import OpenAILLM, OpenAIModelOptions
 
 
 def print_agent_config(agent) -> None:
@@ -397,7 +397,7 @@ uv run mypy src/
 uv run pytest
 
 # 带覆盖率报告
-uv run pytest --cov=pstock_sdk --cov-report=html
+uv run pytest --cov=sdk --cov-report=html
 
 # 运行特定测试
 uv run pytest tests/test_agent.py
@@ -406,7 +406,7 @@ uv run pytest tests/test_agent.py
 ### 添加自定义工具
 
 ```python
-from pstock_sdk import BaseTool, ToolDefinition
+from sdk import BaseTool, ToolDefinition
 
 class MyCustomTool(BaseTool):
     def get_definition(self) -> ToolDefinition:

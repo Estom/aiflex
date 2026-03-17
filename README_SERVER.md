@@ -2,7 +2,7 @@
 
 ## 概述
 
-`pstock_server` 是 PStock 框架的 Web 服务器模块，提供 Agent 市场、交互式聊天和多种运行模式。
+`server` 是 PStock 框架的 Web 服务器模块，提供 Agent 市场、交互式聊天和多种运行模式。
 
 ## 功能特性
 
@@ -15,7 +15,7 @@
 ## 架构
 
 ```
-pstock_server/
+server/
 ├── __init__.py           # 包导出
 ├── __main__.py           # 模块入口
 ├── models.py             # Pydantic 数据模型
@@ -39,9 +39,9 @@ pstock_server/
 ```python
 import os
 from dotenv import load_dotenv
-from pstock_sdk.agent.core.agent import AgentBuilder
-from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
-from pstock_server import registry, AgentServer
+from sdk.agent.core.agent import AgentBuilder
+from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+from server import registry, AgentServer
 
 load_dotenv()
 
@@ -82,7 +82,7 @@ server = AgentServer(registry)
 server.run(["--web"])
 
 # 方式二：命令行
-python -m pstock_server --web
+python -m server --web
 
 # 方式三：指定端口
 server.run(["--web", "--port", "8080"])
@@ -97,7 +97,7 @@ server.run(["--web", "--port", "8080"])
 server.run(["--interactive"])
 
 # 方式二：命令行
-python -m pstock_server --interactive
+python -m server --interactive
 
 # 方式三：指定 Agent
 server.run(["--interactive", "--agent", "financial-analyst"])
@@ -127,7 +127,7 @@ financial-analyst: [结合上下文分析微软...]
 server.run(["--prompt", "AAPL 股价是多少？"])
 
 # 方式二：命令行
-python -m pstock_server --prompt "AAPL 股价是多少？"
+python -m server --prompt "AAPL 股价是多少？"
 
 # 方式三：指定 Agent
 server.run(["--prompt", "分析 AAPL", "--agent", "financial-analyst"])
@@ -140,7 +140,7 @@ server.run(["--prompt", "分析 AAPL", "--agent", "financial-analyst"])
 server.run(["--list"])
 
 # 方式二：命令行
-python -m pstock_server --list
+python -m server --list
 ```
 
 输出示例：
@@ -215,7 +215,7 @@ server.run(args: list[str] | None = None)
 ### 安装依赖
 
 ```bash
-cd src/pstock_server/frontend
+cd src/server/frontend
 npm install
 ```
 
@@ -365,10 +365,10 @@ app.include_router(custom.router)
 
 ```bash
 # 检查 dist 目录是否存在
-ls src/pstock_server/frontend/dist
+ls src/server/frontend/dist
 
 # 如果不存在，重新构建
-cd src/pstock_server/frontend
+cd src/server/frontend
 npm run build
 ```
 
@@ -376,7 +376,7 @@ npm run build
 
 ```bash
 # 列出所有已注册的 Agent
-python -m pstock_server --list
+python -m server --list
 ```
 
 ### API 请求失败

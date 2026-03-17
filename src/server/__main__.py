@@ -1,7 +1,7 @@
 """
 PStock Server - Main Entry Point
 
-This module allows running the server directly with `python -m pstock_server`.
+This module allows running the server directly with `python -m server`.
 """
 
 from .server import start_server

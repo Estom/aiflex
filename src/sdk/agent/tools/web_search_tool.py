@@ -12,8 +12,8 @@ from typing import Any, ClassVar
 
 import httpx
 
-from pstock_sdk.agent.core.interfaces import AgentContext
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.core.interfaces import AgentContext
+from sdk.agent.tools.base_tool import BaseTool
 
 API_URL = "https://api.bocha.cn/v1/web-search"
 DEFAULT_COUNT = 5

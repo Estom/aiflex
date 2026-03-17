@@ -10,7 +10,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from pstock_sdk.agent.core.agent import Agent
+from sdk.agent.core.agent import Agent
 
 from .models import AgentConfig, AgentInfo, SkillInfo, SubagentInfo, ToolInfo
 

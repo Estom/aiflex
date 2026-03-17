@@ -28,8 +28,8 @@ pip install -e .
 
 ```python
 import asyncio
-from pstock_sdk.agent import AgentBuilder
-from pstock_sdk.agent.llm import OpenAILLM, OpenAIModelOptions
+from sdk.agent import AgentBuilder
+from sdk.agent.llm import OpenAILLM, OpenAIModelOptions
 
 async def main():
     # 1. 创建 LLM 实例
@@ -102,7 +102,7 @@ Agent 使用 ReAct（Reasoning + Acting）模式运行：
 封装所有 Agent 配置的数据类：
 
 ```python
-from pstock_sdk.agent.core.agent import AgentOptions
+from sdk.agent.core.agent import AgentOptions
 
 options = AgentOptions(
     llm=llm,
@@ -119,7 +119,7 @@ agent = Agent(options)
 ### LLM 配置
 
 ```python
-from pstock_sdk.agent.llm import OpenAILLM, OpenAIModelOptions
+from sdk.agent.llm import OpenAILLM, OpenAIModelOptions
 
 # OpenAI 模型配置
 llm_options = OpenAIModelOptions(
@@ -208,7 +208,7 @@ agent.reset_runtime()
 所有工具必须实现 `Tool` 协议：
 
 ```python
-from pstock_sdk.agent.core.interfaces import Tool
+from sdk.agent.core.interfaces import Tool
 from pydantic import validate_call
 
 class MyTool(Tool):
@@ -244,7 +244,7 @@ class MyTool(Tool):
 继承 `BaseTool` 可以简化工具开发：
 
 ```python
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.tools.base_tool import BaseTool
 
 class SimpleTool(BaseTool):
     @property
@@ -332,7 +332,7 @@ agent = (AgentBuilder()
     .build())
 
 # 直接添加技能实例
-from pstock_sdk.agent.skills.skill import Skill
+from sdk.agent.skills.skill import Skill
 
 skill = Skill.from_file("./skills/my_skill/SKILL.md")
 agent = (AgentBuilder()
@@ -367,7 +367,7 @@ result = await main_agent.run("获取并分析 AAPL 数据")
 ### MCP 集成
 
 ```python
-from pstock_sdk.agent.core.interfaces import McpServerConfig
+from sdk.agent.core.interfaces import McpServerConfig
 
 mcp_config = McpServerConfig(
     name="my-mcp",
@@ -522,9 +522,9 @@ class TokenUsage:
 
 ```python
 import asyncio
-from pstock_sdk.agent import AgentBuilder
-from pstock_sdk.agent.llm import OpenAILLM, OpenAIModelOptions
-from pstock_sdk.agent.core.interfaces import Tool
+from sdk.agent import AgentBuilder
+from sdk.agent.llm import OpenAILLM, OpenAIModelOptions
+from sdk.agent.core.interfaces import Tool
 from pydantic import validate_call
 
 # 自定义工具

@@ -9,8 +9,8 @@ from typing import Any, ClassVar
 
 import httpx
 
-from pstock_sdk.agent.core.interfaces import AgentContext
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.core.interfaces import AgentContext
+from sdk.agent.tools.base_tool import BaseTool
 
 FETCH_TIMEOUT_MS = 10_000
 MAX_CONTENT_LENGTH = 8000

@@ -7,10 +7,10 @@ Lazy MCP Adapter Tool - MCP 懒加载适配器工具
 import asyncio
 from typing import Any, ClassVar
 
-from pstock_sdk.agent.core.interfaces import AgentContext
-from pstock_sdk.agent.mcp.mcp_config import McpServerConfig
-from pstock_sdk.agent.tools.base_tool import BaseTool
-from pstock_sdk.utils.logger import logger
+from sdk.agent.core.interfaces import AgentContext
+from sdk.agent.mcp.mcp_config import McpServerConfig
+from sdk.agent.tools.base_tool import BaseTool
+from sdk.utils.logger import logger
 
 from .mcp_adapter_tool import McpToolFactory
 

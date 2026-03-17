@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
-from pstock_sdk.agent.core.interfaces import AgentContext, AgentRunResult, AgentStep
+from sdk.agent.core.interfaces import AgentContext, AgentRunResult, AgentStep
 
 from ..models import ChatRequest, ChatResponse, StepData
 from ..registry import registry

@@ -8,8 +8,8 @@ import json
 from enum import StrEnum
 from typing import Any, ClassVar
 
-from pstock_sdk.agent.core.interfaces import AgentContext
-from pstock_sdk.agent.tools.base_tool import BaseTool
+from sdk.agent.core.interfaces import AgentContext
+from sdk.agent.tools.base_tool import BaseTool
 
 
 class TodoStatus(StrEnum):

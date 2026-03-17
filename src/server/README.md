@@ -23,9 +23,9 @@ uv sync
 ### 1. Create and Register Agents
 
 ```python
-from pstock_sdk.agent.core.agent import AgentBuilder
-from pstock_sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
-from pstock_server import registry, start_server
+from sdk.agent.core.agent import AgentBuilder
+from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+from server import registry, start_server
 
 # Create LLM
 llm = OpenAILLM(
@@ -61,7 +61,7 @@ python examples/server_demo.py
 Or run as a module:
 
 ```bash
-python -m pstock_server
+python -m server
 ```
 
 ### 3. Access the Web UI
@@ -75,7 +75,7 @@ The frontend is a React + Vite + Tailwind CSS application.
 ### Install Dependencies
 
 ```bash
-cd src/pstock_server/frontend
+cd src/server/frontend
 npm install
 ```
 
@@ -117,9 +117,9 @@ This builds the frontend to `dist/` which is served by the FastAPI backend.
 ## Architecture
 
 ```
-src/pstock_server/
+src/server/
 ├── __init__.py           # Package exports
-├── __main__.py           # Entry point for `python -m pstock_server`
+├── __main__.py           # Entry point for `python -m server`
 ├── models.py             # Pydantic models
 ├── registry.py           # Agent registry
 ├── server.py             # FastAPI application
