@@ -12,26 +12,23 @@ Agent 集成测试
 """
 
 import asyncio
-import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock
 from typing import Any
+from unittest.mock import AsyncMock
 
-from sdk.agent.core.agent import Agent, AgentBuilder, AgentOptions
+import pytest
+
+from sdk.agent.core.agent import AgentBuilder
 from sdk.agent.core.agent_context_manager import AgentContextManager
-from sdk.agent.core.agent_runtime import AgentRuntime, AgentRuntimeConfig
 from sdk.agent.core.interfaces import (
     AgentContext,
-    AgentRunResult,
     AgentStep,
     ChatHistoryMessage,
     ChatMessage,
-    LLM,
     Tool,
     ToolDefinition,
 )
-from sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
 from sdk.agent.memory.compressor import ContextCompressor
-
+from sdk.agent.memory.memory import MemoryRecord, MemorySlotConfig
 
 # =============================================================================
 # Fixtures

@@ -4,9 +4,7 @@
 
 import pytest
 
-from sdk.agent.core.interfaces import AgentContext, AgentStep
-from sdk.agent.core.agent import Agent, AgentBuilder, AgentOptions
-from sdk.agent.llm.openai_llm import OpenAILLM, OpenAIModelOptions
+from sdk.agent.core.agent import AgentBuilder
 from sdk.agent.tools.tool_registry import ToolRegistry
 from sdk.utils.agent_step import build_agent_step
 

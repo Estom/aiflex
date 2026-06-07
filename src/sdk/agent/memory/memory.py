@@ -64,6 +64,10 @@ class MemoryRecord(dict):
     def content(self) -> str:
         return self["content"]
 
+    @property
+    def type(self) -> str:
+        return self.get("type", "short_term")
+
 
 # 记忆生成器的内置提示词
 MEMORY_GENERATION_PROMPT = """\
